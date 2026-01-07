@@ -3,21 +3,19 @@
 <head>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111111">
-  <meta charset="UTF-8">
-  <title>集中ループ 最終版+</title>
-  <style>
- :root {
-  font-size: 22px;
-}
+<meta charset="UTF-8">
+<title>集中ループ 最終版+</title>
+
+<style>
+:root { font-size: 22px; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
-               "Hiragino Sans", "Noto Sans JP", Arial, sans-serif;
-  line-height: 1.6;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+               "Noto Sans JP", sans-serif;
   margin: 0;
   padding: 16px;
   background: #0f0f10;
-  color: #ffffff;
+  color: #fff;
 }
 
 .container {
@@ -26,21 +24,20 @@ body {
 }
 
 .phase {
-  font-size: 1.5rem;
   text-align: center;
-  margin-bottom: 12px;
+  font-weight: 700;
 }
 
 .timer {
   font-size: 4.2rem;
-  font-weight: 800;
+  font-weight: 900;
   text-align: center;
   margin: 28px 0;
 }
 
 button {
   width: 100%;
-  min-height: 68px;
+  min-height: 72px;
   font-size: 1.3rem;
   font-weight: 700;
   border-radius: 16px;
@@ -50,104 +47,71 @@ button {
   color: #fff;
 }
 
-input, textarea {
-  width: 100%;
-  font-size: 1.2rem;
-  padding: 18px;
-  border-radius: 14px;
-  border: none;
-  margin-top: 10px;
-}
-
 .stats {
   text-align: center;
-  font-size: 1.2rem;   /* 少しだけ大きく */
-  opacity: 0.9;        /* 薄すぎを解消 */
+  font-size: 1.3rem;
   margin-top: 24px;
 }
-    
-  /* ===== スマホ縦置き最適化 ===== */
+
+textarea {
+  width: 100%;
+  padding: 18px;
+  font-size: 1.2rem;
+  border-radius: 14px;
+  border: none;
+  margin-top: 12px;
+}
+
+/* ===== スマホ縦置き ===== */
 @media (orientation: portrait) {
-  :root {
-    font-size: 26px; /* ← 縦置きは一段引き上げる */
+  .phase {
+    font-size: 5.5vw;
+    white-space: nowrap;
   }
 
   .timer {
-    font-size: 14vw; /* 画面幅の14% */
-  }
-
-  .phase {
-    font-size: 6vw;
+    font-size: 20vw;
+    line-height: 1;
   }
 
   button {
-    font-size: 5vw;
-    min-height: 72px;
+    font-size: 5.5vw;
   }
 
-  input,
   textarea {
     font-size: 4.5vw;
   }
 }
-/* ===== 主役3点セット（縦置き特化） ===== */
-@media (orientation: portrait) {
-
-  .phase {
-    font-size: 6vw;
-    white-space: nowrap;  /* 強制1行 */
-    font-weight: 700;
-    margin: 24px 0 16px;
-  }
-
-  .timer {
-    font-size: 20vw;   /* ← ここが勝負 */
-    font-weight: 900;
-    line-height: 1;
-    margin: 24px 0;
-  }
-
-  button.complete {
-    font-size: 6vw;
-    min-height: 80px;
-    margin-top: 24px;
-  }
-}
-
 </style>
-
 </head>
+
 <body>
 
-  <div class="container">
+<div class="container">
+  <div id="phase" class="phase"></div>
+  <div id="timer" class="timer"></div>
 
-    <div id="phase" class="phase"></div>
+  <button id="completeBtn"
+          onclick="completePhase()"
+          style="display:none;">
+    完了ポモドーロ
+  </button>
 
-    <div id="timer" class="timer"></div>
+  <button id="startBtn"
+          onclick="start()"
+          style="display:none;">
+    スタート
+  </button>
+</div>
 
-    <button id="completeBtn"
-            class="complete"
-            onclick="completePhase()"
-            style="display:none;">
-      完了ポモドーロ
-    </button>
+<div id="count" class="stats"></div>
 
-  </div>
-
-  <div id="count" class="stats"></div>
-
-  <div id="inputArea">
-    <textarea id="memo"></textarea>
-  </div>
-
-  <div>
-    <button onclick="start()">スタート</button>
-  </div>
+<div id="inputArea">
+  <textarea id="memo"></textarea>
+</div>
 
 <script>
-/* =========================
-   フェーズ定義
-========================= */
+/* ===== フェーズ ===== */
 
 const basePhases = [
   {
@@ -155,12 +119,12 @@ const basePhases = [
     time: 60,
     input: true,
     placeholder: "ノートシェルフを開け！タスクを転記しろ！",
-    autoStart: false
+    autoStart: false,
+    showStart: true
   },
   {
     name: "22分｜集中する",
     time: 1320,
-    input: false,
     canComplete: true
   },
   {
@@ -174,42 +138,38 @@ const basePhases = [
     name: "1分｜振り返り",
     time: 60,
     input: true,
-    placeholder: "気づき・詰まり"
+    placeholder: "気づき・詰まり",
+    canComplete: true
   },
   {
     name: "1分｜片付け",
     time: 60,
-    input: false
+    canComplete: true
   },
   {
     name: "3分｜休憩",
     time: 180,
-    input: false,
-    endOfCycle: true
+    endOfCycle: true,
+    canComplete: true
   }
 ];
 
-// 4ポモ後の特別休憩
 const longRestPhases = [
   {
     name: "15分｜ログ＆日記",
     time: 900,
     input: true,
-    placeholder: "今日の4ポモでやったこと・気づき"
+    placeholder: "今日の4ポモでやったこと・気づき",
+    canComplete: true
   },
   {
     name: "15分｜しっかり休憩",
     time: 900,
-    input: false
+    canComplete: true
   }
 ];
 
 let phases = [...basePhases];
-
-/* =========================
-   状態
-========================= */
-
 let index = 0;
 let time = phases[0].time;
 let timer = null;
@@ -217,20 +177,19 @@ let timer = null;
 let pomodoroCount =
   Number(localStorage.getItem("pomodoroCount")) || 0;
 
-/* =========================
-   DOM
-========================= */
+/* ===== DOM ===== */
 
 const phaseEl = document.getElementById("phase");
 const timerEl = document.getElementById("timer");
 const countEl = document.getElementById("count");
-const inputArea = document.getElementById("inputArea");
 const memo = document.getElementById("memo");
+const inputArea = document.getElementById("inputArea");
+const startBtn = document.getElementById("startBtn");
 const completeBtn = document.getElementById("completeBtn");
 
-/* =========================
-   初期化
-========================= */
+/* ===== 初期化 ===== */
+
+init();
 
 function init() {
   updatePhase();
@@ -238,9 +197,7 @@ function init() {
   updateCount();
 }
 
-/* =========================
-   タイマー制御
-========================= */
+/* ===== 制御 ===== */
 
 function start() {
   if (timer) return;
@@ -263,13 +220,10 @@ function nextPhase() {
   clearInterval(timer);
   timer = null;
 
-  // ポモドーロ完了
   if (phases[index].endOfCycle) {
     pomodoroCount++;
     localStorage.setItem("pomodoroCount", pomodoroCount);
-    updateCount();
 
-    // 4ポモごとに30分休憩
     if (pomodoroCount % 4 === 0) {
       phases = [...basePhases, ...longRestPhases];
       index = basePhases.length - 1;
@@ -277,7 +231,6 @@ function nextPhase() {
   }
 
   index++;
-
   if (index >= phases.length) {
     phases = [...basePhases];
     index = 0;
@@ -290,60 +243,42 @@ function nextPhase() {
   updateTimer();
   playSound();
 
-  if (phases[index].autoStart !== false) {
-    start();
-  }
+  if (phases[index].autoStart !== false) start();
 }
 
-/* =========================
-   表示更新
-========================= */
+/* ===== 表示 ===== */
 
 function updatePhase() {
   const p = phases[index];
+
   phaseEl.innerText = p.name;
   inputArea.style.display = p.input ? "block" : "none";
   memo.placeholder = p.placeholder || "";
 
-  // 完了ボタン制御
-  completeBtn.style.display =
-    p.canComplete ? "inline-block" : "none";
+  startBtn.style.display = p.showStart ? "block" : "none";
+  completeBtn.style.display = p.canComplete ? "block" : "none";
 }
 
 function updateTimer() {
   const m = Math.floor(time / 60);
   const s = time % 60;
-  timerEl.innerText =
-    `${m}:${s.toString().padStart(2, "0")}`;
+  timerEl.innerText = `${m}:${s.toString().padStart(2,"0")}`;
 }
 
 function updateCount() {
-  countEl.innerText =
-    `🍅 完了ポモドーロ：${pomodoroCount}`;
+  countEl.innerText = `🍅 完了ポモドーロ：${pomodoroCount}`;
 }
 
-/* =========================
-   音
-========================= */
+/* ===== 音 ===== */
 
 function playSound() {
-  const ctx =
-    new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = "sine";
   osc.frequency.value = 880;
-  gain.gain.value = 0.08;
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
+  osc.connect(ctx.destination);
   osc.start();
-  osc.stop(ctx.currentTime + 0.2);
+  osc.stop(ctx.currentTime + 0.15);
 }
-
-init();
 </script>
 
 </body>
