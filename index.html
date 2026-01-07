@@ -117,10 +117,24 @@ input, textarea {
 
 </head>
 <body>
+<body>
 
-  <div id="phase"></div>
-  <div id="timer"></div>
-  <div id="count"></div>
+  <div class="container">
+
+    <div id="phase" class="phase"></div>
+
+    <div id="timer" class="timer"></div>
+
+    <button id="completeBtn"
+            class="complete"
+            onclick="completePhase()"
+            style="display:none;">
+      完了ポモドーロ
+    </button>
+
+  </div>
+
+  <div id="count" class="stats"></div>
 
   <div id="inputArea">
     <textarea id="memo"></textarea>
@@ -128,9 +142,6 @@ input, textarea {
 
   <div>
     <button onclick="start()">スタート</button>
-    <button id="completeBtn" onclick="completePhase()" style="display:none;">
-      完了
-    </button>
   </div>
 
 <script>
