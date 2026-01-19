@@ -17,26 +17,30 @@
         input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 6px; font-size: 15px; }
         textarea { height: 100px; }
         .controls { display: flex; gap: 10px; justify-content: center; margin-top: 30px; }
-        button { padding: 15px 30px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; background: #222; color: #fff; text-transform: uppercase; transition: 0.2s; }
-        button#start-btn { background: #ff3b30; }
-        .rope-msg { margin-top: 25px; font-size: 16px; font-weight: bold; color: #ffcc00; font-style: italic; min-height: 24px; }
+        button { padding: 15px 30px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; background: #222; color: #fff; text-transform: uppercase; transition: 0.2s; min-width: 120px; }
+        button#action-btn { background: #ff3b30; }
+        #pomo-info { margin-top: 15px; color: #888; font-size: 14px; }
+        .rope-msg { margin-top: 25px; font-size: 16px; font-weight: bold; color: #ffcc00; font-style: italic; min-height: 48px; line-height: 1.5; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="phase-name">Ready</div>
+    <div id="phase-name">READY</div>
     <div id="timer">25:00</div>
+    <div id="pomo-info">完了: 0 / 目標: 4</div>
+
     <div class="input-group">
         <label>Next Relay Point (中継点)</label>
         <input type="text" id="task-title" placeholder="誰に、何を渡す？">
     </div>
     <div class="input-group">
-        <label>Knots (結び目・報告)</label>
-        <textarea id="task-detail" placeholder="スピードこそ至上。粗くて良い、今すぐ出せる形に。"></textarea>
+        <label>Knots (結び目・報告下書き)</label>
+        <textarea id="task-detail" placeholder="1分・22分・2分・1分・1分・3分。"></textarea>
     </div>
+
     <div class="controls">
-        <button id="start-btn">出陣 (Engage)</button>
+        <button id="action-btn">出陣 (Engage)</button>
         <button onclick="resetTimer()">Reset</button>
     </div>
     <div id="rope-msg" class="rope-msg"></div>
@@ -45,58 +49,42 @@
 <script>
     let timerId;
     let timeLeft;
-    let currentPhase = 0;
+    let currentPhaseIndex = -1; // 開始前は-1
+    let completedPomo = 0;
+    const targetPomo = 4;
     let audioCtx = null;
+    let isLongBreak = false;
 
-    // 貴殿の魂に問いかけるメッセージ群
-const basePhases = [
-        { 
-            name: "Scout (着手)", 
-            time: 1 * 60, 
-            msg: "1分だけやるとしたら、何から手をつけるべきか？" 
-        },
-        { 
-            name: "Rush (実行)", 
-            time: 22 * 60, 
-            msg: "どうすれば前に進めるか？ 協力し合える形を目指そう。" 
-        },
-        { 
-            name: "Pass (まとめ)", 
-            time: 2 * 60, 
-            msg: "丁寧すぎて待たせていないか？ 丁寧にしたい旨を伝えよう。" 
-        },
-        { 
-            name: "Knot (報告)", 
-            time: 1 * 60, 
-            msg: "次にすべきことを書き出し、一瞬で再開できる状態にせよ。" 
-        },
-        { 
-            name: "Clean (片付け)", 
-            time: 1 * 60, 
-            msg: "次のことを一瞬で開始できる状態にしたか？" 
-        },
-        { 
-            name: "Brief (休憩)", 
-            time: 3 * 60, 
-            msg: "一度ロープを離せ。疲弊せぬよう、次の一撃に備えよ。" 
-        }
+    const standardLoop = [
+        { name: "Scout (着手)", time: 1 * 60, msg: "1分だけやるとしたら、\n何から手をつけるべきか？" },
+        { name: "Rush (実行)", time: 22 * 60, msg: "どうすれば前に進めるか？\n協力し合える形を目指そう。" },
+        { name: "Pass (まとめ)", time: 2 * 60, msg: "丁寧すぎて待たせていないか？\n丁寧にしたい旨を伝えよう。" },
+        { name: "Knot (報告)", time: 1 * 60, msg: "次にすべきことを書き出し、\n一瞬で再開できる状態にせよ。" },
+        { name: "Clean (片付け)", time: 1 * 60, msg: "次のことを一瞬で\n開始できる状態にしたか？" },
+        { name: "Brief (休憩)", time: 3 * 60, msg: "一度ロープを離せ。\n疲弊せぬよう、次の一撃に備えよ。" }
+    ];
+
+    const longBreakLoop = [
+        { name: "Review (復習)", time: 15 * 60, msg: "ここまでのロープの繋がりを俯瞰し、\n次ポモを選択せよ。" },
+        { name: "Rest (深呼吸)", time: 15 * 60, msg: "全軍休息。\n英気を養い、次の3〜4ポモに備えよ。" }
     ];
 
     const timerDisplay = document.getElementById('timer');
     const phaseDisplay = document.getElementById('phase-name');
     const msgDisplay = document.getElementById('rope-msg');
-    const startBtn = document.getElementById('start-btn');
+    const actionBtn = document.getElementById('action-btn');
+    const pomoInfo = document.getElementById('pomo-info');
 
     function playBeep() {
         if (!audioCtx) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
+        osc.stop(audioCtx.currentTime + 0.4);
     }
 
     function updateDisplay() {
@@ -107,21 +95,44 @@ const basePhases = [
 
     function nextPhase() {
         playBeep();
-        if (currentPhase === 2) { document.body.classList.add('relay-mode'); } 
-        else { document.body.classList.remove('relay-mode'); }
+        currentPhaseIndex++;
+        
+        let currentLoop = isLongBreak ? longBreakLoop : standardLoop;
 
-        if (currentPhase >= basePhases.length) currentPhase = 0;
-        let phase = basePhases[currentPhase];
+        // ループ終了判定
+        if (currentPhaseIndex >= currentLoop.length) {
+            currentPhaseIndex = 0;
+            if (!isLongBreak) {
+                completedPomo++;
+                pomoInfo.textContent = `完了: ${completedPomo} / 目標: ${targetPomo}`;
+                if (completedPomo % targetPomo === 0) {
+                    isLongBreak = true;
+                    currentLoop = longBreakLoop;
+                }
+            } else {
+                isLongBreak = false;
+                currentLoop = standardLoop;
+            }
+        }
+
+        let phase = currentLoop[currentPhaseIndex];
         phaseDisplay.textContent = phase.name;
-        msgDisplay.textContent = phase.msg;
+        msgDisplay.innerText = phase.msg; // 改行反映のためinnerText
         timeLeft = phase.time;
-        currentPhase++;
+        
+        if (phase.name.includes("Pass") || isLongBreak) {
+            document.body.classList.add('relay-mode');
+        } else {
+            document.body.classList.remove('relay-mode');
+        }
+
+        // ボタンのテキスト変更
+        actionBtn.textContent = "完了 (Done)";
+        startTimer();
     }
 
-    startBtn.onclick = () => {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (timerId) return;
-        if (!timeLeft) nextPhase();
+    function startTimer() {
+        if (timerId) clearInterval(timerId);
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
@@ -129,20 +140,28 @@ const basePhases = [
                 clearInterval(timerId);
                 timerId = null;
                 nextPhase();
-                startBtn.click(); 
             }
         }, 1000);
+    }
+
+    actionBtn.onclick = () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        nextPhase(); // ボタンを押すと即座に次のフェーズへ
     };
 
     function resetTimer() {
         clearInterval(timerId);
         timerId = null;
         timeLeft = 0;
-        currentPhase = 0;
+        currentPhaseIndex = -1;
+        completedPomo = 0;
+        isLongBreak = false;
         document.body.classList.remove('relay-mode');
-        phaseDisplay.textContent = "Ready";
-        msgDisplay.textContent = "";
+        phaseDisplay.textContent = "READY";
+        msgDisplay.innerText = "";
         timerDisplay.textContent = "25:00";
+        pomoInfo.textContent = `完了: 0 / 目標: ${targetPomo}`;
+        actionBtn.textContent = "出陣 (Engage)";
     }
 </script>
 </body>
