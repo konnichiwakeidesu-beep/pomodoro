@@ -3,96 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>集中ループ Master</title>
+    <title>ロープ - Rope</title>
     <style>
-        body { background-color: #0f0f10; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .container { text-align: center; width: 90%; max-width: 500px; }
-        #timer { font-size: 80px; font-weight: bold; margin: 20px 0; color: #00ffcc; }
-        #phase-name { font-size: 24px; color: #ffcc00; margin-bottom: 10px; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; font-size: 14px; margin-bottom: 5px; color: #888; }
-        input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 10px; box-sizing: border-box; border-radius: 4px; }
-        textarea { height: 80px; resize: none; }
-        .controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
-        button { padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; background: #333; color: #fff; transition: 0.3s; }
-        button#start-btn { background: #007bff; }
-        button#start-btn:hover { background: #0056b3; }
-        .info { margin-top: 20px; font-size: 14px; color: #666; }
+        body { background-color: #050505; color: #d1d1d1; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s; }
+        .container { text-align: center; width: 90%; max-width: 500px; padding: 30px; border-radius: 12px; background: #0f0f10; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #timer { font-size: 100px; font-weight: 900; margin: 10px 0; color: #f0f0f0; letter-spacing: -2px; }
+        #phase-name { font-size: 20px; font-weight: bold; color: #ff3b30; text-transform: uppercase; letter-spacing: 2px; }
+        body.relay-mode { background-color: #440000; }
+        body.relay-mode #timer { color: #ff3b30; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #666; text-transform: uppercase; }
+        input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 6px; font-size: 15px; }
+        textarea { height: 100px; }
+        .controls { display: flex; gap: 10px; justify-content: center; margin-top: 30px; }
+        button { padding: 15px 30px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; background: #222; color: #fff; text-transform: uppercase; transition: 0.2s; }
+        button#start-btn { background: #ff3b30; }
+        .rope-msg { margin-top: 25px; font-size: 16px; font-weight: bold; color: #ffcc00; font-style: italic; min-height: 24px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="phase-name">待機中</div>
+    <div id="phase-name">Ready</div>
     <div id="timer">25:00</div>
-
     <div class="input-group">
-        <label>現在のタスク（タイトル）</label>
-        <input type="text" id="task-title" placeholder="例：立教大学 パスナビ提案資料作成">
+        <label>Next Relay Point (中継点)</label>
+        <input type="text" id="task-title" placeholder="誰に、何を渡す？">
     </div>
     <div class="input-group">
-        <label>タスクの詳細・メモ</label>
-        <textarea id="task-detail" placeholder="スプレッドシートから抜き出した詳細をここに貼ってください"></textarea>
+        <label>Knots (結び目・報告)</label>
+        <textarea id="task-detail" placeholder="スピードこそ至上。粗くて良い、今すぐ出せる形に。"></textarea>
     </div>
-
-    <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
-        <label style="margin:0;">目標ポモ数:</label>
-        <input type="number" id="target-pomo" value="4" min="1" style="width: 60px; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 5px;">
-        <span id="pomo-count">完了: 0</span>
-    </div>
-
     <div class="controls">
-        <button id="start-btn">出陣（スタート）</button>
-        <button onclick="resetTimer()">リセット</button>
+        <button id="start-btn">出陣 (Engage)</button>
+        <button onclick="resetTimer()">Reset</button>
     </div>
-    
-    <div class="info">※開始ボタンを押すと音響の権限が解放されます。</div>
+    <div id="rope-msg" class="rope-msg"></div>
 </div>
 
 <script>
     let timerId;
     let timeLeft;
     let currentPhase = 0;
-    let completedPomo = 0;
     let audioCtx = null;
 
-    // フェーズ定義: 3〜4ポモ後の15分休憩を含む
-    const basePhases = [
-        { name: "まず始める（導入）", time: 1 * 60 },
-        { name: "集中する（本番）", time: 22 * 60 },
-        { name: "完了報告（言語化）", time: 2 * 60 },
-        { name: "振り返り", time: 1 * 60 },
-        { name: "片付け", time: 1 * 60 },
-        { name: "短い休憩", time: 3 * 60 }
+    // 貴殿の魂に問いかけるメッセージ群
+const basePhases = [
+        { 
+            name: "Scout (着手)", 
+            time: 1 * 60, 
+            msg: "1分だけやるとしたら、何から手をつけるべきか？" 
+        },
+        { 
+            name: "Rush (実行)", 
+            time: 22 * 60, 
+            msg: "どうすれば前に進めるか？ 協力し合える形を目指そう。" 
+        },
+        { 
+            name: "Pass (まとめ)", 
+            time: 2 * 60, 
+            msg: "丁寧すぎて待たせていないか？ 丁寧にしたい旨を伝えよう。" 
+        },
+        { 
+            name: "Knot (報告)", 
+            time: 1 * 60, 
+            msg: "次にすべきことを書き出し、一瞬で再開できる状態にせよ。" 
+        },
+        { 
+            name: "Clean (片付け)", 
+            time: 1 * 60, 
+            msg: "次のことを一瞬で開始できる状態にしたか？" 
+        },
+        { 
+            name: "Brief (休憩)", 
+            time: 3 * 60, 
+            msg: "一度ロープを離せ。疲弊せぬよう、次の一撃に備えよ。" 
+        }
     ];
 
-    const longBreakPhases = [
-        { name: "復習・次ポモの選択", time: 15 * 60 },
-        { name: "しっかり休憩", time: 15 * 60 }
-    ];
-
-    const startBtn = document.getElementById('start-btn');
     const timerDisplay = document.getElementById('timer');
     const phaseDisplay = document.getElementById('phase-name');
-    const pomoDisplay = document.getElementById('pomo-count');
-
-    function initAudio() {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-    }
+    const msgDisplay = document.getElementById('rope-msg');
+    const startBtn = document.getElementById('start-btn');
 
     function playBeep() {
         if (!audioCtx) return;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
         gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
+        osc.stop(audioCtx.currentTime + 0.3);
     }
 
     function updateDisplay() {
@@ -103,50 +107,21 @@
 
     function nextPhase() {
         playBeep();
-        
-        // 1ループ（basePhases）が終わったかチェック
-        if (currentPhase >= basePhases.length) {
-            completedPomo++;
-            pomoDisplay.textContent = `完了: ${completedPomo}`;
-            currentPhase = 0;
+        if (currentPhase === 2) { document.body.classList.add('relay-mode'); } 
+        else { document.body.classList.remove('relay-mode'); }
 
-            const target = parseInt(document.getElementById('target-pomo').value);
-            if (completedPomo % target === 0) {
-                // 指定ポモ数に達したら15分ずつの休憩フェーズへ
-                runSpecialBreak();
-                return;
-            }
-        }
-
+        if (currentPhase >= basePhases.length) currentPhase = 0;
         let phase = basePhases[currentPhase];
         phaseDisplay.textContent = phase.name;
+        msgDisplay.textContent = phase.msg;
         timeLeft = phase.time;
         currentPhase++;
     }
 
-    function runSpecialBreak() {
-        let breakStep = 0;
-        function nextBreakStep() {
-            playBeep();
-            if (breakStep < longBreakPhases.length) {
-                let p = longBreakPhases[breakStep];
-                phaseDisplay.textContent = p.name;
-                timeLeft = p.time;
-                breakStep++;
-            } else {
-                currentPhase = 0;
-                nextPhase();
-            }
-        }
-        nextBreakStep();
-    }
-
     startBtn.onclick = () => {
-        initAudio(); // ユーザー操作時にAudioContextを初期化
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (timerId) return;
-        
         if (!timeLeft) nextPhase();
-        
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
@@ -154,7 +129,7 @@
                 clearInterval(timerId);
                 timerId = null;
                 nextPhase();
-                startBtn.click(); // 自動で次のフェーズを開始
+                startBtn.click(); 
             }
         }, 1000);
     };
@@ -164,10 +139,10 @@
         timerId = null;
         timeLeft = 0;
         currentPhase = 0;
-        completedPomo = 0;
-        phaseDisplay.textContent = "待機中";
+        document.body.classList.remove('relay-mode');
+        phaseDisplay.textContent = "Ready";
+        msgDisplay.textContent = "";
         timerDisplay.textContent = "25:00";
-        pomoDisplay.textContent = "完了: 0";
     }
 </script>
 </body>
