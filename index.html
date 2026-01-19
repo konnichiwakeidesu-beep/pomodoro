@@ -1,285 +1,174 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#111111">
-<meta charset="UTF-8">
-<title>集中ループ 最終版+</title>
-
-<style>
-:root { font-size: 22px; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
-               "Noto Sans JP", sans-serif;
-  margin: 0;
-  padding: 16px;
-  background: #0f0f10;
-  color: #fff;
-}
-
-.container {
-  max-width: 420px;
-  margin: 0 auto;
-}
-
-.phase {
-  text-align: center;
-  font-weight: 700;
-}
-
-.timer {
-  font-size: 4.2rem;
-  font-weight: 900;
-  text-align: center;
-  margin: 28px 0;
-}
-
-button {
-  width: 100%;
-  min-height: 72px;
-  font-size: 1.3rem;
-  font-weight: 700;
-  border-radius: 16px;
-  border: none;
-  margin: 14px 0;
-  background: #1e88ff;
-  color: #fff;
-}
-
-.stats {
-  text-align: center;
-  font-size: 1.3rem;
-  margin-top: 24px;
-}
-
-textarea {
-  width: 100%;
-  padding: 18px;
-  font-size: 1.2rem;
-  border-radius: 14px;
-  border: none;
-  margin-top: 12px;
-}
-
-/* ===== スマホ縦置き ===== */
-@media (orientation: portrait) {
-  .phase {
-    font-size: 5.5vw;
-    white-space: nowrap;
-  }
-
-  .timer {
-    font-size: 20vw;
-    line-height: 1;
-  }
-
-  button {
-    font-size: 5.5vw;
-  }
-
-  textarea {
-    font-size: 4.5vw;
-  }
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>集中ループ Master</title>
+    <style>
+        body { background-color: #0f0f10; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { text-align: center; width: 90%; max-width: 500px; }
+        #timer { font-size: 80px; font-weight: bold; margin: 20px 0; color: #00ffcc; }
+        #phase-name { font-size: 24px; color: #ffcc00; margin-bottom: 10px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; font-size: 14px; margin-bottom: 5px; color: #888; }
+        input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 10px; box-sizing: border-box; border-radius: 4px; }
+        textarea { height: 80px; resize: none; }
+        .controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; background: #333; color: #fff; transition: 0.3s; }
+        button#start-btn { background: #007bff; }
+        button#start-btn:hover { background: #0056b3; }
+        .info { margin-top: 20px; font-size: 14px; color: #666; }
+    </style>
 </head>
-
 <body>
 
 <div class="container">
-  <div id="phase" class="phase"></div>
-  <div id="timer" class="timer"></div>
+    <div id="phase-name">待機中</div>
+    <div id="timer">25:00</div>
 
-  <button id="completeBtn"
-          onclick="completePhase()"
-          style="display:none;">
-    完了ポモドーロ
-  </button>
+    <div class="input-group">
+        <label>現在のタスク（タイトル）</label>
+        <input type="text" id="task-title" placeholder="例：立教大学 パスナビ提案資料作成">
+    </div>
+    <div class="input-group">
+        <label>タスクの詳細・メモ</label>
+        <textarea id="task-detail" placeholder="スプレッドシートから抜き出した詳細をここに貼ってください"></textarea>
+    </div>
 
-  <button id="startBtn"
-          onclick="start()"
-          style="display:none;">
-    スタート
-  </button>
-</div>
+    <div class="input-group" style="display: flex; align-items: center; gap: 10px;">
+        <label style="margin:0;">目標ポモ数:</label>
+        <input type="number" id="target-pomo" value="4" min="1" style="width: 60px; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 5px;">
+        <span id="pomo-count">完了: 0</span>
+    </div>
 
-<div id="count" class="stats"></div>
-
-<div id="inputArea">
-  <textarea id="memo"></textarea>
+    <div class="controls">
+        <button id="start-btn">出陣（スタート）</button>
+        <button onclick="resetTimer()">リセット</button>
+    </div>
+    
+    <div class="info">※開始ボタンを押すと音響の権限が解放されます。</div>
 </div>
 
 <script>
-/* ===== フェーズ ===== */
+    let timerId;
+    let timeLeft;
+    let currentPhase = 0;
+    let completedPomo = 0;
+    let audioCtx = null;
 
-const basePhases = [
-  {
-    name: "1分｜まず始める",
-    time: 60,
-    input: true,
-    placeholder: "ノートシェルフを開け！タスクを転記しろ！",
-    autoStart: false,
-    showStart: true
-  },
-  {
-    name: "22分｜集中する",
-    time: 1320,
-    canComplete: true
-  },
-  {
-    name: "2分｜完了報告",
-    time: 120,
-    input: true,
-    placeholder: "できたことを一言で",
-    canComplete: true
-  },
-  {
-    name: "1分｜振り返り",
-    time: 60,
-    input: true,
-    placeholder: "気づき・詰まり",
-    canComplete: true
-  },
-  {
-    name: "1分｜片付け",
-    time: 60,
-    canComplete: true
-  },
-  {
-    name: "3分｜休憩",
-    time: 180,
-    endOfCycle: true,
-    canComplete: true
-  }
-];
+    // フェーズ定義: 3〜4ポモ後の15分休憩を含む
+    const basePhases = [
+        { name: "まず始める（導入）", time: 1 * 60 },
+        { name: "集中する（本番）", time: 22 * 60 },
+        { name: "完了報告（言語化）", time: 2 * 60 },
+        { name: "振り返り", time: 1 * 60 },
+        { name: "片付け", time: 1 * 60 },
+        { name: "短い休憩", time: 3 * 60 }
+    ];
 
-const longRestPhases = [
-  {
-    name: "15分｜ログ＆日記",
-    time: 900,
-    input: true,
-    placeholder: "今日の4ポモでやったこと・気づき",
-    canComplete: true
-  },
-  {
-    name: "15分｜しっかり休憩",
-    time: 900,
-    canComplete: true
-  }
-];
+    const longBreakPhases = [
+        { name: "復習・次ポモの選択", time: 15 * 60 },
+        { name: "しっかり休憩", time: 15 * 60 }
+    ];
 
-let phases = [...basePhases];
-let index = 0;
-let time = phases[0].time;
-let timer = null;
+    const startBtn = document.getElementById('start-btn');
+    const timerDisplay = document.getElementById('timer');
+    const phaseDisplay = document.getElementById('phase-name');
+    const pomoDisplay = document.getElementById('pomo-count');
 
-let pomodoroCount =
-  Number(localStorage.getItem("pomodoroCount")) || 0;
-
-/* ===== DOM ===== */
-
-const phaseEl = document.getElementById("phase");
-const timerEl = document.getElementById("timer");
-const countEl = document.getElementById("count");
-const memo = document.getElementById("memo");
-const inputArea = document.getElementById("inputArea");
-const startBtn = document.getElementById("startBtn");
-const completeBtn = document.getElementById("completeBtn");
-
-/* ===== 初期化 ===== */
-
-init();
-
-function init() {
-  updatePhase();
-  updateTimer();
-  updateCount();
-}
-
-/* ===== 制御 ===== */
-
-function start() {
-  if (timer) return;
-  playSound();
-  timer = setInterval(tick, 1000);
-}
-
-function tick() {
-  time--;
-  updateTimer();
-  if (time <= 0) nextPhase();
-}
-
-function completePhase() {
-  time = 0;
-  nextPhase();
-}
-
-function nextPhase() {
-  clearInterval(timer);
-  timer = null;
-
-  if (phases[index].endOfCycle) {
-    pomodoroCount++;
-    localStorage.setItem("pomodoroCount", pomodoroCount);
-
-    if (pomodoroCount % 4 === 0) {
-      phases = [...basePhases, ...longRestPhases];
-      index = basePhases.length - 1;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
     }
-  }
 
-  index++;
-  if (index >= phases.length) {
-    phases = [...basePhases];
-    index = 0;
-  }
+    function playBeep() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+    }
 
-  time = phases[index].time;
-  memo.value = "";
+    function updateDisplay() {
+        let mins = Math.floor(timeLeft / 60);
+        let secs = timeLeft % 60;
+        timerDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
 
-  updatePhase();
-  updateTimer();
-  playSound();
+    function nextPhase() {
+        playBeep();
+        
+        // 1ループ（basePhases）が終わったかチェック
+        if (currentPhase >= basePhases.length) {
+            completedPomo++;
+            pomoDisplay.textContent = `完了: ${completedPomo}`;
+            currentPhase = 0;
 
-  if (phases[index].autoStart !== false) start();
-}
+            const target = parseInt(document.getElementById('target-pomo').value);
+            if (completedPomo % target === 0) {
+                // 指定ポモ数に達したら15分ずつの休憩フェーズへ
+                runSpecialBreak();
+                return;
+            }
+        }
 
-/* ===== 表示 ===== */
+        let phase = basePhases[currentPhase];
+        phaseDisplay.textContent = phase.name;
+        timeLeft = phase.time;
+        currentPhase++;
+    }
 
-function updatePhase() {
-  const p = phases[index];
+    function runSpecialBreak() {
+        let breakStep = 0;
+        function nextBreakStep() {
+            playBeep();
+            if (breakStep < longBreakPhases.length) {
+                let p = longBreakPhases[breakStep];
+                phaseDisplay.textContent = p.name;
+                timeLeft = p.time;
+                breakStep++;
+            } else {
+                currentPhase = 0;
+                nextPhase();
+            }
+        }
+        nextBreakStep();
+    }
 
-  phaseEl.innerText = p.name;
-  inputArea.style.display = p.input ? "block" : "none";
-  memo.placeholder = p.placeholder || "";
+    startBtn.onclick = () => {
+        initAudio(); // ユーザー操作時にAudioContextを初期化
+        if (timerId) return;
+        
+        if (!timeLeft) nextPhase();
+        
+        timerId = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(timerId);
+                timerId = null;
+                nextPhase();
+                startBtn.click(); // 自動で次のフェーズを開始
+            }
+        }, 1000);
+    };
 
-  startBtn.style.display = p.showStart ? "block" : "none";
-  completeBtn.style.display = p.canComplete ? "block" : "none";
-}
-
-function updateTimer() {
-  const m = Math.floor(time / 60);
-  const s = time % 60;
-  timerEl.innerText = `${m}:${s.toString().padStart(2,"0")}`;
-}
-
-function updateCount() {
-  countEl.innerText = `🍅 完了ポモドーロ：${pomodoroCount}`;
-}
-
-/* ===== 音 ===== */
-
-function playSound() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctx.createOscillator();
-  osc.frequency.value = 880;
-  osc.connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.15);
-}
+    function resetTimer() {
+        clearInterval(timerId);
+        timerId = null;
+        timeLeft = 0;
+        currentPhase = 0;
+        completedPomo = 0;
+        phaseDisplay.textContent = "待機中";
+        timerDisplay.textContent = "25:00";
+        pomoDisplay.textContent = "完了: 0";
+    }
 </script>
-
 </body>
 </html>
