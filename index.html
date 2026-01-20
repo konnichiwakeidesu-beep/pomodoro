@@ -75,16 +75,36 @@
     const actionBtn = document.getElementById('action-btn');
     const pomoInfo = document.getElementById('pomo-info');
 
-    function playBeep() {
-        if (!audioCtx) return;
+    // iPad/iOSの強固な制限を突破するための新・音響関数
+    async function playBeep() {
+        // 1. AudioContextの初期化（未作成の場合）
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        // 2. iPad/iOS対策：中断（suspended）状態を強制解除
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+
+        // 3. 音の生成
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        
+        osc.type = 'sine'; 
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 周波数（ラ）
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); // 音量
+
         osc.connect(gain);
         gain.connect(audioCtx.destination);
+
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.4);
+        osc.stop(audioCtx.currentTime + 0.4); // 0.4秒鳴らす
+
+        // 4. バイブレーション（iPhone用/対応iPad用）
+        if ("vibrate" in navigator) {
+            navigator.vibrate(200); 
+        }
     }
 
     function updateDisplay() {
@@ -144,11 +164,17 @@
         }, 1000);
     }
 
-    actionBtn.onclick = () => {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        nextPhase(); // ボタンを押すと即座に次のフェーズへ
+actionBtn.onclick = async () => {
+        // ボタンを押した瞬間に音響を叩き起こす
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+        
+        nextPhase(); // 次のフェーズへ
     };
-
     function resetTimer() {
         clearInterval(timerId);
         timerId = null;
