@@ -3,108 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ロープ - Rope</title>
+    <title>ロープ (Rope) - 繋ぐための時間管理</title>
     <style>
-        body { background-color: #050505; color: #d1d1d1; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; transition: background-color 0.5s; }
-        .container { text-align: center; width: 90%; max-width: 500px; padding: 30px; border-radius: 12px; background: #0f0f10; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        #timer { font-size: 100px; font-weight: 900; margin: 10px 0; color: #f0f0f0; letter-spacing: -2px; }
-        #phase-name { font-size: 20px; font-weight: bold; color: #ff3b30; text-transform: uppercase; letter-spacing: 2px; }
-        body.relay-mode { background-color: #440000; }
-        body.relay-mode #timer { color: #ff3b30; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
-        .input-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #666; text-transform: uppercase; }
-        input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 6px; font-size: 15px; }
-        textarea { height: 100px; }
-        .controls { display: flex; gap: 10px; justify-content: center; margin-top: 30px; }
-        button { padding: 15px 30px; font-size: 14px; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; background: #222; color: #fff; text-transform: uppercase; transition: 0.2s; min-width: 120px; }
-        button#action-btn { background: #ff3b30; }
-        #pomo-info { margin-top: 15px; color: #888; font-size: 14px; }
-        .rope-msg { margin-top: 25px; font-size: 16px; font-weight: bold; color: #ffcc00; font-style: italic; min-height: 48px; line-height: 1.5; white-space: pre-wrap; }
+        body { background-color: #0f0f10; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .container { text-align: center; width: 100%; max-width: 500px; }
+        #timer { font-size: 80px; font-weight: bold; margin: 10px 0; color: #00ffcc; text-shadow: 0 0 20px rgba(0,255,204,0.3); }
+        #phase-name { font-size: 28px; color: #ffcc00; font-weight: bold; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 4em; margin: 10px 0; line-height: 1.6; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; font-size: 14px; margin-bottom: 5px; color: #888; }
+        input[type="text"], textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 4px; font-size: 16px; }
+        textarea { height: 80px; resize: none; }
+        .controls { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        button { padding: 18px; font-size: 20px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; }
+        #action-btn { background: #007bff; color: white; box-shadow: 0 4px 15px rgba(0,123,255,0.4); }
+        #action-btn:active { transform: translateY(2px); }
+        #action-btn:disabled { background: #222; color: #555; box-shadow: none; cursor: default; }
+        #reset-btn { background: none; color: #555; font-size: 14px; text-decoration: underline; margin-top: 10px; }
+        .pomo-info { margin-top: 15px; font-size: 14px; color: #666; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="phase-name">READY</div>
-    <div id="timer">25:00</div>
-    <div id="pomo-info">完了: 0 / 目標: 4</div>
+    <div id="phase-name">待機中</div>
+    <div id="phase-msg">「ロープ」を投げる準備を。<br>軍議を開始せよ。</div>
+    <div id="timer">00:00</div>
 
     <div class="input-group">
-        <label>Next Relay Point (中継点)</label>
-        <input type="text" id="task-title" placeholder="誰に、何を渡す？">
+        <label>現在の任務</label>
+        <input type="text" id="task-title" placeholder="何を中継するか？">
     </div>
     <div class="input-group">
-        <label>Knots (結び目・報告下書き)</label>
-        <textarea id="task-detail" placeholder="1分・22分・2分・1分・1分・3分。"></textarea>
+        <label>戦況メモ / 次への結び目</label>
+        <textarea id="task-detail" placeholder="中断時に「次はここから」を書き残せ"></textarea>
+    </div>
+
+    <div class="pomo-info">
+        <span id="pomo-count">完了ポモ: 0</span>
     </div>
 
     <div class="controls">
-        <button id="action-btn">出陣 (Engage)</button>
-        <button onclick="resetTimer()">Reset</button>
+        <button id="action-btn">出陣（開始）</button>
+        <button id="reset-btn" onclick="resetTimer()">リセット</button>
     </div>
-    <div id="rope-msg" class="rope-msg"></div>
 </div>
 
 <script>
-    let timerId;
-    let timeLeft;
-    let currentPhaseIndex = -1; // 開始前は-1
+    let timerId = null;
+    let timeLeft = 0;
+    let currentPhaseIndex = -1;
     let completedPomo = 0;
-    const targetPomo = 4;
     let audioCtx = null;
-    let isLongBreak = false;
 
-    const standardLoop = [
-        { name: "Scout (着手)", time: 1 * 60, msg: "1分だけやるとしたら、\n何から手をつけるべきか？" },
-        { name: "Rush (実行)", time: 22 * 60, msg: "どうすれば前に進めるか？\n協力し合える形を目指そう。" },
-        { name: "Pass (まとめ)", time: 2 * 60, msg: "丁寧すぎて待たせていないか？\n丁寧にしたい旨を伝えよう。" },
-        { name: "Knot (報告)", time: 1 * 60, msg: "次にすべきことを書き出し、\n一瞬で再開できる状態にせよ。" },
-        { name: "Clean (片付け)", time: 1 * 60, msg: "次のことを一瞬で\n開始できる状態にしたか？" },
-        { name: "Brief (休憩)", time: 3 * 60, msg: "一度ロープを離せ。\n疲弊せぬよう、次の一撃に備えよ。" }
+    const phases = [
+        { name: "Scout (偵察)", time: 1 * 60, msg: "1分だけやるとしたら<br>なにをしたらいいだろう？" },
+        { name: "Rush (集中)", time: 20 * 60, msg: "どういう形にしたら前に進めるだろう？<br>協力してもらう形にしよう" },
+        { name: "Pass (中継)", time: 3 * 60, msg: "粗くても、今投げたほうが相手は助かるのではないか？<br>丁寧にしたいと考えていることを伝えよう" },
+        { name: "Knot (結び目)", time: 2 * 60, msg: "次にすべきことを書き出そう。<br>一瞬で再開できる状態にしたか？" },
+        { name: "Clean (撤収)", time: 1 * 60, msg: "次のことを一瞬で開始できる状態にしたか？" },
+        { name: "Brief (休止)", time: 3 * 60, msg: "一度ロープを離せ。<br>次の一撃に備えよ。" }
     ];
 
-    const longBreakLoop = [
-        { name: "Review (復習)", time: 15 * 60, msg: "ここまでのロープの繋がりを俯瞰し、\n次ポモを選択せよ。" },
-        { name: "Rest (深呼吸)", time: 15 * 60, msg: "全軍休息。\n英気を養い、次の3〜4ポモに備えよ。" }
-    ];
-
-    const timerDisplay = document.getElementById('timer');
-    const phaseDisplay = document.getElementById('phase-name');
-    const msgDisplay = document.getElementById('rope-msg');
     const actionBtn = document.getElementById('action-btn');
-    const pomoInfo = document.getElementById('pomo-info');
+    const timerDisplay = document.getElementById('timer');
+    const phaseNameDisplay = document.getElementById('phase-name');
+    const phaseMsgDisplay = document.getElementById('phase-msg');
+    const pomoDisplay = document.getElementById('pomo-count');
 
-    // iPad/iOSの強固な制限を突破するための新・音響関数
-    async function playBeep() {
-        // 1. AudioContextの初期化（未作成の場合）
+    function initAudio() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-
-        // 2. iPad/iOS対策：中断（suspended）状態を強制解除
         if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
+            audioCtx.resume();
         }
+    }
 
-        // 3. 音の生成
+    function playBeep() {
+        initAudio();
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        
-        osc.type = 'sine'; 
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // 周波数（ラ）
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); // 音量
-
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.4); // 0.4秒鳴らす
-
-        // 4. バイブレーション（iPhone用/対応iPad用）
-        if ("vibrate" in navigator) {
-            navigator.vibrate(200); 
-        }
+        osc.stop(audioCtx.currentTime + 0.5);
     }
 
     function updateDisplay() {
@@ -113,81 +99,60 @@
         timerDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
-    function nextPhase() {
-        playBeep();
+    function startNextPhase() {
         currentPhaseIndex++;
         
-        let currentLoop = isLongBreak ? longBreakLoop : standardLoop;
-
-        // ループ終了判定
-        if (currentPhaseIndex >= currentLoop.length) {
+        if (currentPhaseIndex >= phases.length) {
+            completedPomo++;
+            pomoDisplay.textContent = `完了ポモ: ${completedPomo}`;
             currentPhaseIndex = 0;
-            if (!isLongBreak) {
-                completedPomo++;
-                pomoInfo.textContent = `完了: ${completedPomo} / 目標: ${targetPomo}`;
-                if (completedPomo % targetPomo === 0) {
-                    isLongBreak = true;
-                    currentLoop = longBreakLoop;
-                }
-            } else {
-                isLongBreak = false;
-                currentLoop = standardLoop;
-            }
         }
 
-        let phase = currentLoop[currentPhaseIndex];
-        phaseDisplay.textContent = phase.name;
-        msgDisplay.innerText = phase.msg; // 改行反映のためinnerText
-        timeLeft = phase.time;
+        const p = phases[currentPhaseIndex];
+        phaseNameDisplay.textContent = p.name;
+        phaseMsgDisplay.innerHTML = p.msg;
+        timeLeft = p.time;
+        updateDisplay();
         
-        if (phase.name.includes("Pass") || isLongBreak) {
-            document.body.classList.add('relay-mode');
-        } else {
-            document.body.classList.remove('relay-mode');
-        }
-
-        // ボタンのテキスト変更
-        actionBtn.textContent = "完了 (Done)";
         startTimer();
     }
 
     function startTimer() {
         if (timerId) clearInterval(timerId);
+        actionBtn.textContent = "遂行中...";
+        actionBtn.disabled = true;
+        
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
             if (timeLeft <= 0) {
                 clearInterval(timerId);
                 timerId = null;
-                nextPhase();
+                playBeep();
+                actionBtn.textContent = "完了（次へ）";
+                actionBtn.disabled = false;
             }
         }, 1000);
     }
 
-actionBtn.onclick = async () => {
-        // ボタンを押した瞬間に音響を叩き起こす
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    actionBtn.onclick = () => {
+        initAudio();
+        if (actionBtn.textContent === "出陣（開始）" || actionBtn.textContent === "完了（次へ）") {
+            startNextPhase();
         }
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
-        }
-        
-        nextPhase(); // 次のフェーズへ
     };
+
     function resetTimer() {
+        if (!confirm("最初からやり直すか？")) return;
         clearInterval(timerId);
         timerId = null;
         timeLeft = 0;
         currentPhaseIndex = -1;
-        completedPomo = 0;
-        isLongBreak = false;
-        document.body.classList.remove('relay-mode');
-        phaseDisplay.textContent = "READY";
-        msgDisplay.innerText = "";
-        timerDisplay.textContent = "25:00";
-        pomoInfo.textContent = `完了: 0 / 目標: ${targetPomo}`;
-        actionBtn.textContent = "出陣 (Engage)";
+        phaseNameDisplay.textContent = "待機中";
+        phaseMsgDisplay.textContent = "「ロープ」を投げる準備を。";
+        timerDisplay.textContent = "00:00";
+        actionBtn.textContent = "出陣（開始）";
+        actionBtn.disabled = false;
     }
 </script>
 </body>
