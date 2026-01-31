@@ -225,17 +225,26 @@ async function reportCheckedTasks() {
     }
 }
 
-    function startNextPhase() {
+function startNextPhase() {
         if (currentPhaseIndex === 99) {
-            document.getElementById('fetch-btn').classList.remove('hidden');
-            document.getElementById('main-content').classList.remove('active');
-            document.getElementById('footer-action').classList.remove('active');
+            // 休息終了 -> 真の初期状態への帰還
+            
+            // 1. 物理的な表示の復元
+            document.getElementById('fetch-btn').classList.remove('hidden'); // 同期ボタン復活
+            document.getElementById('fetch-btn').textContent = "⚡ 任務を同期"; // 文字を戻す
+            document.getElementById('main-content').classList.remove('active'); // リストエリアを隠す
+            document.getElementById('footer-action').classList.remove('active'); // 操作ボタンを隠す
+            
+            // 2. 変数と状態のリセット
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
-            setupStandby();
+            
+            // 3. 表示の初期化
+            setupStandby(); 
             return;
         }
+        // ...以下、既存の処理
 
         if (currentPhaseIndex === 98) {
             startForestRest();
