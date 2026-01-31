@@ -126,4 +126,61 @@
     }
 
     function startNextPhase() {
-        current
+        currentPhaseIndex++;
+        if (currentPhaseIndex >= phases.length) {
+            currentPhaseIndex = -1;
+            setupStandby();
+            return;
+        }
+
+        const p = phases[currentPhaseIndex];
+        document.getElementById('phase-name').textContent = p.name;
+        document.getElementById('phase-msg').innerHTML = p.msg;
+        timeLeft = p.time;
+        
+        startTimer();
+    }
+
+    function startTimer() {
+        const btn = document.getElementById('action-btn');
+        btn.disabled = true;
+        btn.textContent = "遂行中...";
+        
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(timerId);
+                playBeep();
+                startNextPhase();
+            }
+        }, 1000);
+    }
+
+    function updateDisplay() {
+        let m = Math.floor(timeLeft / 60);
+        let s = timeLeft % 60;
+        document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
+
+    function playBeep() {
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        } catch(e) { console.error("音響エラー", e); }
+    }
+
+    function setupStandby() {
+        document.getElementById('phase-name').textContent = "待機中";
+        document.getElementById('action-btn').disabled = false;
+        document.getElementById('action-btn').textContent = "出陣（開始）";
+    }
+</script>
+</body>
+</html>
