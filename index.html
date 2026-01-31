@@ -257,7 +257,7 @@ async function handleAction() {
         startTimer();
     }
 
-    function startTimer() {
+function startTimer() {
         if (timerId) clearInterval(timerId);
         updateDisplay();
         timerId = setInterval(() => {
@@ -266,8 +266,12 @@ async function handleAction() {
             if (timeLeft <= 0) {
                 clearInterval(timerId);
                 timerId = null;
+                
+                // 【重要】ここで音を鳴らす！
+                notifyUser(); 
+                
                 if (currentPhaseIndex === 98) startForestRest();
-                else if (currentPhaseIndex === 99) {} // ユーザーのEXIT待ち
+                else if (currentPhaseIndex === 99) {} 
                 else { reportCheckedTasks(); startNextPhase(); }
             }
         }, 1000);
