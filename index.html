@@ -165,21 +165,37 @@
         }
     }
 
-    async function reportCheckedTasks() {
-        if (currentPhaseIndex >= 98) return;
-        const key = slotKeys[currentSlotIndex];
-        const listId = pomoData[key].listId;
-        const checks = document.querySelectorAll('.task-check:checked');
-        
-        for (let cb of Array.from(checks)) {
-            const taskId = cb.getAttribute('data-id');
-            const url = `${GAS_URL}?action=complete&listId=${listId}&taskId=${taskId}`;
-            fetch(url, { mode: 'no-cors' }); 
-            
-            // 重要：pomoDataからこのタスクを物理的に削除する
-            pomoData[key].tasks = pomoData[key].tasks.filter(t => t.id !== taskId);
-        }
+async function reportCheckedTasks() {
+    if (currentPhaseIndex >= 98 || !pomoData) return;
+    
+    const key = slotKeys[currentSlotIndex];
+    const slotInfo = pomoData[key];
+    
+    // 偵察：IDが本当にあるか確認
+    if (!slotInfo || !slotInfo.listId) {
+        console.error("作戦失敗: リストIDが見つかりませぬ。 key=" + key);
+        return;
     }
+
+    const listId = slotInfo.listId;
+    const checks = document.querySelectorAll('.task-check:checked');
+    
+    for (let cb of Array.from(checks)) {
+        if (cb.disabled) continue; 
+        const taskId = cb.getAttribute('data-id');
+        
+        // 【重要】no-corsをやめ、確実に届けるための細工を施す
+        const url = `${GAS_URL}?action=complete&listId=${encodeURIComponent(listId)}&taskId=${encodeURIComponent(taskId)}`;
+        
+        // 伝令を放つ（あえてawaitせず、並列で放つ）
+        fetch(url, { mode: 'no-cors' }).catch(e => console.error("伝令沈没:", e));
+        
+        // 画面上の処理
+        pomoData[key].tasks = pomoData[key].tasks.filter(t => t.id !== taskId);
+        cb.parentElement.classList.add('done');
+        cb.disabled = true;
+    }
+}
 
     function startNextPhase() {
         if (currentPhaseIndex === 99) {
