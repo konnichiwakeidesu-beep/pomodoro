@@ -172,33 +172,6 @@ function refreshDisplay() {
     });
 }
 
-        const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
-        const key = slotKeys[currentSlotIndex];
-        document.getElementById('target-slot-name').textContent = key;
-        
-        const data = pomoData ? pomoData[key] : null;
-        if (!data || data.tasks.length === 0) {
-            main.innerHTML = '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
-            return;
-        }
-
-  data.tasks.forEach(task => {
-            const div = document.createElement('div');
-            div.className = "task-item";
-            const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
-            const showCheckbox = !["Clean", "Brief"].includes(currentPhaseName);
-            
-            if (showCheckbox) {
-                // チェックボックスがある状態
-                div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
-            } else {
-                // チェックボックスがない状態でも、<span>でタイトルを囲む（取得しやすくするため）
-                div.innerHTML = `<span style="margin-left:45px; opacity:0.6;">${task.title}</span>`;
-            }
-            main.appendChild(div);
-        });
-    }
-
     async function handleAction() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
