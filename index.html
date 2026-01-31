@@ -168,30 +168,21 @@
 async function reportCheckedTasks() {
     if (currentPhaseIndex >= 98 || !pomoData) return;
     
-    const key = slotKeys[currentSlotIndex];
-    const slotInfo = pomoData[key];
-    
-    // 偵察：IDが本当にあるか確認
-    if (!slotInfo || !slotInfo.listId) {
-        console.error("作戦失敗: リストIDが見つかりませぬ。 key=" + key);
-        return;
-    }
-
-    const listId = slotInfo.listId;
+    const slotName = slotKeys[currentSlotIndex]; // 「ポモ①」など
     const checks = document.querySelectorAll('.task-check:checked');
     
     for (let cb of Array.from(checks)) {
         if (cb.disabled) continue; 
-        const taskId = cb.getAttribute('data-id');
+        const taskTitle = cb.nextElementSibling.textContent; // タスク名を取得
+        const taskId = cb.getAttribute('data-id'); // 画面消去用
         
-        // 【重要】no-corsをやめ、確実に届けるための細工を施す
-        const url = `${GAS_URL}?action=complete&listId=${encodeURIComponent(listId)}&taskId=${encodeURIComponent(taskId)}`;
+        // パラメータを ID ではなく「名前」で送る
+        const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
         
-        // 伝令を放つ（あえてawaitせず、並列で放つ）
-        fetch(url, { mode: 'no-cors' }).catch(e => console.error("伝令沈没:", e));
+        fetch(url, { mode: 'no-cors' });
         
         // 画面上の処理
-        pomoData[key].tasks = pomoData[key].tasks.filter(t => t.id !== taskId);
+        pomoData[slotName].tasks = pomoData[slotName].tasks.filter(t => t.id !== taskId);
         cb.parentElement.classList.add('done');
         cb.disabled = true;
     }
