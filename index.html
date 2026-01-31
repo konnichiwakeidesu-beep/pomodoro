@@ -110,19 +110,50 @@
             refreshDisplay();
         } catch (e) { alert("同期失敗。"); btn.textContent = "❌ 再試行"; }
     }
+function refreshDisplay() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = "";
+    
+    // 現在のフェーズ名を取得
+    const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
 
-    function refreshDisplay() {
-        const main = document.getElementById('main-content');
-        main.innerHTML = "";
-        
-        if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
-            const area = document.createElement('textarea');
-            area.id = "review-note";
-            area.placeholder = "戦果や課題を記せ...";
-            main.appendChild(area);
-            document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
-            return;
-        }
+    // 1. Review または Forest Rest (全ポモ終了後)
+    if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
+        const area = document.createElement('textarea');
+        area.id = "review-note";
+        area.placeholder = "戦果や課題を記せ...";
+        main.appendChild(area);
+        document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
+        return;
+    }
+
+    // 2. Clean または Brief (各ポモの締め)
+    // ここではタスクを表示せず、真っさらな状態にする
+    if (["Clean", "Brief"].includes(currentPhaseName)) {
+        main.innerHTML = `
+            <div style="height: 100%; display: flex; align-items: center; justify-content: center; color: #666; font-style: italic; font-size: 18px;">
+                ${currentPhaseName === "Clean" ? "戦場を清めよ..." : "心を解き放て..."}
+            </div>`;
+        return;
+    }
+
+    // 3. 通常フェーズ (Scout, Rush, Pass, Knot)
+    const key = slotKeys[currentSlotIndex];
+    document.getElementById('target-slot-name').textContent = key;
+    
+    const data = pomoData ? pomoData[key] : null;
+    if (!data || data.tasks.length === 0) {
+        main.innerHTML = '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
+        return;
+    }
+
+    data.tasks.forEach(task => {
+        const div = document.createElement('div');
+        div.className = "task-item";
+        div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
+        main.appendChild(div);
+    });
+}
 
         const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
         const key = slotKeys[currentSlotIndex];
