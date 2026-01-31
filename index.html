@@ -3,57 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ロープ (Rope) - Google Tasks 連携版</title>
+    <title>ロープ (Rope) - Command Center</title>
     <style>
-        body { background-color: #0f0f10; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        :root { --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; --primary-btn: #007bff; --success-btn: #28a745; }
+        body { background-color: var(--bg); color: #e0e0e0; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
         .container { text-align: center; width: 100%; max-width: 500px; }
-        #timer { font-size: 80px; font-weight: bold; margin: 10px 0; color: #00ffcc; text-shadow: 0 0 20px rgba(0,255,204,0.3); }
-        #phase-name { font-size: 28px; color: #ffcc00; font-weight: bold; }
-        #phase-msg { font-size: 16px; color: #bbb; min-height: 4em; margin: 10px 0; line-height: 1.6; }
         
-        .slot-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
-        .pomo-slot { background: #1a1a1b; border: 2px solid #333; border-radius: 8px; padding: 10px; cursor: pointer; transition: 0.2s; font-size: 14px; text-align: left; }
-        .pomo-slot.active { border-color: #007bff; background: #001a33; box-shadow: 0 0 10px rgba(0,123,255,0.5); }
+        #fetch-btn { width: 100%; background: #333; border: 1px solid #444; color: #fff; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
+        #fetch-btn:hover { background: #444; border-color: var(--accent); }
+
+        #timer { font-size: 90px; font-weight: 200; margin: 5px 0; color: var(--accent); letter-spacing: -2px; }
+        #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; text-transform: uppercase; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 4em; margin: 15px 0; line-height: 1.6; font-style: italic; }
+        
+        .slot-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 25px; }
+        .pomo-slot { background: var(--card); border: 2px solid #333; border-radius: 12px; padding: 15px; cursor: pointer; transition: 0.3s; font-size: 14px; text-align: left; }
+        .pomo-slot strong { color: #888; display: block; margin-bottom: 5px; }
+        .pomo-slot.active { border-color: var(--primary-btn); background: #001a33; }
         .pomo-slot.empty { color: #555; border-style: dashed; }
 
-        .input-group { margin-bottom: 15px; text-align: left; }
-        label { font-size: 12px; color: #666; margin-bottom: 4px; display: block; }
-        input, textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 4px; font-size: 16px; }
-        textarea { height: 60px; resize: none; }
+        .input-group { margin-bottom: 15px; text-align: left; width: 100%; }
+        label { font-size: 12px; color: #666; margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 1px; }
+        input, textarea { width: 100%; background: var(--card); border: 1px solid #333; color: #fff; padding: 14px; box-sizing: border-box; border-radius: 8px; font-size: 16px; outline: none; }
+        textarea { height: 70px; resize: none; }
         
+        /* ボタン類 */
         .controls { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        button#action-btn { padding: 18px; font-size: 20px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #007bff; color: white; }
-        button:disabled { background: #222 !important; color: #555 !important; cursor: default; }
-        #fetch-btn { background: none; border: 1px solid #444; color: #888; margin-bottom: 15px; padding: 8px; cursor: pointer; border-radius: 4px; }
+        button#action-btn { width: 100%; padding: 20px; font-size: 22px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: 0.3s; color: white; }
+        .btn-start { background: var(--primary-btn); box-shadow: 0 10px 20px rgba(0,123,255,0.3); }
+        .btn-next { background: var(--success-btn); box-shadow: 0 10px 20px rgba(40,167,69,0.3); }
+        
+        button:disabled { background: #222 !important; color: #555 !important; box-shadow: none !important; cursor: default; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="fetch-btn" onclick="fetchTasks()">任務を読み込む (Google Tasks)</button>
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務リストを同期する (Google Tasks)</button>
     
-    <div class="slot-container" id="slot-container">
-        <div class="pomo-slot empty">ポモ① (未読込)</div>
-        <div class="pomo-slot empty">ポモ② (未読込)</div>
-        <div class="pomo-slot empty">ポモ③ (未読込)</div>
-        <div class="pomo-slot empty">ポモ④ (未読込)</div>
-    </div>
+    <div class="slot-container" id="slot-container"></div>
 
-    <div id="phase-name">待機中</div>
-    <div id="phase-msg">「ロープ」を投げる準備を。</div>
+    <div id="phase-name">READY</div>
     <div id="timer">00:00</div>
+    <div id="phase-msg">任務を選択し、出陣せよ。</div>
 
     <div class="input-group">
-        <label>現在の任務</label>
+        <label>Current Mission</label>
         <input type="text" id="task-title" placeholder="任務名">
     </div>
     <div class="input-group">
-        <label>戦況メモ / 次への結び目</label>
-        <textarea id="task-detail" placeholder="進捗や次にやることをここに残す"></textarea>
+        <label>Knot / Mission Log</label>
+        <textarea id="task-detail" placeholder="戦況メモ"></textarea>
     </div>
 
     <div class="controls">
-        <button id="action-btn" onclick="pressActionBtn()">出陣（開始）</button>
+        <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
     </div>
 </div>
 
@@ -66,12 +70,12 @@
     let pomoTasks = {};
 
     const phases = [
-        { name: "Scout (偵察)", time: 1 * 60, msg: "1分だけやるとしたら<br>なにをしたらいいだろう？" },
-        { name: "Rush (集中)", time: 20 * 60, msg: "どういう形にしたら前に進めるだろう？" },
-        { name: "Pass (中継)", time: 3 * 60, msg: "粗くても、今投げたほうが相手は助かるのではないか？" },
-        { name: "Knot (結び目)", time: 2 * 60, msg: "一瞬で再開できる状態にしたか？" },
-        { name: "Clean (撤収)", time: 1 * 60, msg: "次のことを一瞬で開始できるか？" },
-        { name: "Brief (休止)", time: 3 * 60, msg: "一度ロープを離せ。次の一撃に備えよ。" }
+        { name: "Scout", time: 1 * 60, msg: "1分だけやるとしたら、何ができる？" },
+        { name: "Rush", time: 20 * 60, msg: "集中せよ。完璧を求めるな。" },
+        { name: "Pass", time: 3 * 60, msg: "中継の時間だ。粗くても投げろ。" },
+        { name: "Knot", time: 2 * 60, msg: "結び目を打て。思考をメモに残せ。" },
+        { name: "Clean", time: 1 * 60, msg: "戦場を片付けろ。次を即開始できるか？" },
+        { name: "Brief", time: 3 * 60, msg: "完全に離れよ。英気を養え。" }
     ];
 
     async function fetchTasks() {
@@ -81,11 +85,11 @@
             const res = await fetch(GAS_URL);
             pomoTasks = await res.json();
             renderSlots();
-            btn.textContent = "任務を更新する";
+            btn.textContent = "✅ 同期完了";
+            setTimeout(() => btn.textContent = "⚡ 任務リストを同期する (Google Tasks)", 2000);
         } catch (e) {
-            console.error(e);
-            alert("通信に失敗した。GASの公開設定を確認してくれ。");
-            btn.textContent = "再試行";
+            alert("通信失敗。GASの設定を確認してくれ。");
+            btn.textContent = "❌ 通信エラー";
         }
     }
 
@@ -96,36 +100,42 @@
             const task = pomoTasks[key];
             const div = document.createElement('div');
             div.className = `pomo-slot ${task ? '' : 'empty'}`;
-            div.innerHTML = `<strong>${key}</strong><br>${task ? task.title : '（空）'}`;
+            div.innerHTML = `<strong>${key}</strong>${task ? task.title : '（空・スキップ）'}`;
             div.onclick = function() { selectSlot(key, div); };
             container.appendChild(div);
         });
     }
 
     function selectSlot(key, element) {
+        if (timerId) return; // 遂行中は選択不可
         const task = pomoTasks[key];
-        if (!task) {
-            alert("このスロットは空だ。アポ等の時間として使うか？");
-            return;
-        }
+        if (!task) return alert("このスロットは空だ。");
         document.getElementById('task-title').value = task.title;
         document.getElementById('task-detail').value = task.detail || "";
-        
         document.querySelectorAll('.pomo-slot').forEach(el => el.classList.remove('active'));
         element.classList.add('active');
     }
 
-    function pressActionBtn() {
+    function handleAction() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
 
-        if (currentPhaseIndex === -1 || currentPhaseIndex >= phases.length - 1) {
+        if (!timerId) {
+            // 開始処理
+            startNextPhase();
+        } else {
+            // 完了（切り上げ）処理
+            clearInterval(timerId);
+            timerId = null;
+            playBeep();
             startNextPhase();
         }
     }
 
     function startNextPhase() {
         currentPhaseIndex++;
+        
+        // 全フェーズ終了時
         if (currentPhaseIndex >= phases.length) {
             currentPhaseIndex = -1;
             setupStandby();
@@ -137,20 +147,22 @@
         document.getElementById('phase-msg').innerHTML = p.msg;
         timeLeft = p.time;
         
+        // UI更新: ボタンを「完了」に変更
+        const btn = document.getElementById('action-btn');
+        btn.textContent = `${p.name}を完了して次へ`;
+        btn.className = "btn-next";
+        
         startTimer();
     }
 
     function startTimer() {
-        const btn = document.getElementById('action-btn');
-        btn.disabled = true;
-        btn.textContent = "遂行中...";
-        
         if (timerId) clearInterval(timerId);
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
             if (timeLeft <= 0) {
                 clearInterval(timerId);
+                timerId = null;
                 playBeep();
                 startNextPhase();
             }
@@ -172,13 +184,17 @@
             osc.frequency.setValueAtTime(880, audioCtx.currentTime);
             gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-        } catch(e) { console.error("音響エラー", e); }
+        } catch(e) {}
     }
 
     function setupStandby() {
-        document.getElementById('phase-name').textContent = "待機中";
-        document.getElementById('action-btn').disabled = false;
-        document.getElementById('action-btn').textContent = "出陣（開始）";
+        timerId = null;
+        document.getElementById('phase-name').textContent = "READY";
+        document.getElementById('timer').textContent = "00:00";
+        document.getElementById('phase-msg').textContent = "任務を選択し、出陣せよ。";
+        const btn = document.getElementById('action-btn');
+        btn.textContent = "出陣 (START)";
+        btn.className = "btn-start";
     }
 </script>
 </body>
