@@ -1,13 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ロープ (Rope) - Google Tasks 連携版</title>
+    <style>
+        body { background-color: #0f0f10; color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .container { text-align: center; width: 100%; max-width: 500px; }
+        #timer { font-size: 80px; font-weight: bold; margin: 10px 0; color: #00ffcc; text-shadow: 0 0 20px rgba(0,255,204,0.3); }
+        #phase-name { font-size: 28px; color: #ffcc00; font-weight: bold; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 4em; margin: 10px 0; line-height: 1.6; }
+        
+        .slot-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+        .pomo-slot { background: #1a1a1b; border: 2px solid #333; border-radius: 8px; padding: 10px; cursor: pointer; transition: 0.2s; font-size: 14px; text-align: left; }
+        .pomo-slot.active { border-color: #007bff; background: #001a33; box-shadow: 0 0 10px rgba(0,123,255,0.5); }
+        .pomo-slot.empty { color: #555; border-style: dashed; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { font-size: 12px; color: #666; margin-bottom: 4px; display: block; }
+        input, textarea { width: 100%; background: #1a1a1b; border: 1px solid #333; color: #fff; padding: 12px; box-sizing: border-box; border-radius: 4px; font-size: 16px; }
+        textarea { height: 60px; resize: none; }
+        
+        .controls { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        button#action-btn { padding: 18px; font-size: 20px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #007bff; color: white; }
+        button:disabled { background: #222 !important; color: #555 !important; cursor: default; }
+        #fetch-btn { background: none; border: 1px solid #444; color: #888; margin-bottom: 15px; padding: 8px; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button id="fetch-btn" onclick="fetchTasks()">任務を読み込む (Google Tasks)</button>
+    
+    <div class="slot-container" id="slot-container">
+        <div class="pomo-slot empty">ポモ① (未読込)</div>
+        <div class="pomo-slot empty">ポモ② (未読込)</div>
+        <div class="pomo-slot empty">ポモ③ (未読込)</div>
+        <div class="pomo-slot empty">ポモ④ (未読込)</div>
+    </div>
+
+    <div id="phase-name">待機中</div>
+    <div id="phase-msg">「ロープ」を投げる準備を。</div>
+    <div id="timer">00:00</div>
+
+    <div class="input-group">
+        <label>現在の任務</label>
+        <input type="text" id="task-title" placeholder="任務名">
+    </div>
+    <div class="input-group">
+        <label>戦況メモ / 次への結び目</label>
+        <textarea id="task-detail" placeholder="進捗や次にやることをここに残す"></textarea>
+    </div>
+
+    <div class="controls">
+        <button id="action-btn" onclick="pressActionBtn()">出陣（開始）</button>
+    </div>
+</div>
+
 <script>
-    // クォーテーションで囲ったぞ！
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzka8ljRTcY9vdplfDElRITo7rjFNtQtUVdAFaMc0OuLPsBLIwlX42slLCSzIq2Gp9Zcg/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzka8ljRTcY9vdplfDElRITo7rjFNtQtUVdAFaMc0OuLPsBLIwlX42slLCSzIq2Gp9Zcg/exec";
     let currentPhaseIndex = -1;
     let timerId = null;
     let timeLeft = 0;
     let audioCtx = null;
     let pomoTasks = {};
 
-    // --- 以下、既存のロジック ---
     const phases = [
         { name: "Scout (偵察)", time: 1 * 60, msg: "1分だけやるとしたら<br>なにをしたらいいだろう？" },
         { name: "Rush (集中)", time: 20 * 60, msg: "どういう形にしたら前に進めるだろう？" },
@@ -18,13 +75,17 @@
     ];
 
     async function fetchTasks() {
+        const btn = document.getElementById('fetch-btn');
+        btn.textContent = "偵察中...";
         try {
-            if (!GAS_URL.startsWith("http")) return alert("GASのURLをセットしてください。");
             const res = await fetch(GAS_URL);
             pomoTasks = await res.json();
             renderSlots();
+            btn.textContent = "任務を更新する";
         } catch (e) {
-            alert("通信に失敗した。GASのデプロイ設定（全員に公開されているか）を確認してくれ。");
+            console.error(e);
+            alert("通信に失敗した。GASの公開設定を確認してくれ。");
+            btn.textContent = "再試行";
         }
     }
 
@@ -36,21 +97,23 @@
             const div = document.createElement('div');
             div.className = `pomo-slot ${task ? '' : 'empty'}`;
             div.innerHTML = `<strong>${key}</strong><br>${task ? task.title : '（空）'}`;
-            div.onclick = () => selectSlot(key);
+            div.onclick = function() { selectSlot(key, div); };
             container.appendChild(div);
         });
     }
 
-    function selectSlot(key) {
+    function selectSlot(key, element) {
         const task = pomoTasks[key];
-        if (!task) return alert("このスロットは空です。スキップします。");
+        if (!task) {
+            alert("このスロットは空だ。アポ等の時間として使うか？");
+            return;
+        }
         document.getElementById('task-title').value = task.title;
-        document.getElementById('task-detail').value = task.detail;
+        document.getElementById('task-detail').value = task.detail || "";
+        
+        // アクティブ表示の切り替え
         document.querySelectorAll('.pomo-slot').forEach(el => el.classList.remove('active'));
-        // 選択されたスロットを視覚的に強調
-        const slots = document.querySelectorAll('.pomo-slot');
-        const index = ["ポモ①", "ポモ②", "ポモ③", "ポモ④"].indexOf(key);
-        if(slots[index]) slots[index].classList.add('active');
+        element.classList.add('active');
     }
 
     function pressActionBtn() {
@@ -63,54 +126,4 @@
     }
 
     function startNextPhase() {
-        currentPhaseIndex++;
-        if (currentPhaseIndex >= phases.length) {
-            currentPhaseIndex = -1;
-            setupStandby();
-            return;
-        }
-
-        const p = phases[currentPhaseIndex];
-        document.getElementById('phase-name').textContent = p.name;
-        document.getElementById('phase-msg').innerHTML = p.msg;
-        timeLeft = p.time;
-        
-        startTimer();
-    }
-
-    function startTimer() {
-        const btn = document.getElementById('action-btn');
-        btn.disabled = true;
-        btn.textContent = "遂行中...";
-        
-        if (timerId) clearInterval(timerId);
-        timerId = setInterval(() => {
-            timeLeft--;
-            updateDisplay();
-            if (timeLeft <= 0) {
-                clearInterval(timerId);
-                playBeep();
-                startNextPhase();
-            }
-        }, 1000);
-    }
-
-    function updateDisplay() {
-        let m = Math.floor(timeLeft / 60);
-        let s = timeLeft % 60;
-        document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-    }
-
-    function playBeep() {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-    }
-
-    function setupStandby() {
-        document.getElementById('phase-name').textContent = "待機中";
-        document.getElementById('action-btn').disabled = false;
-        document.getElementById('action-btn').textContent = "出陣（開始）";
-    }
-</script>
+        current
