@@ -138,21 +138,27 @@
 
 // HTML内の該当箇所を差し替え
 async function reportCheckedTasks() {
-    const checks = document.getElementById('task-list-area').querySelectorAll('.task-check:checked');
+    const checks = document.querySelectorAll('.task-check:checked');
     if (checks.length === 0) return;
 
-    const promises = Array.from(checks).map(cb => {
+    for (const cb of Array.from(checks)) {
         const taskId = cb.getAttribute('data-id');
-        // 通信設定に mode: 'no-cors' を追加
         const url = `${GAS_URL}?action=complete&listId=${currentListId}&taskId=${taskId}`;
-        return fetch(url, { mode: 'no-cors' }).then(() => {
-            cb.parentElement.style.opacity = "0.3"; 
+        
+        try {
+            // mode: 'no-cors' を一旦外し、標準的なフェッチを試みる
+            // これで動かない場合は、GASのデプロイが「全員」になっているか再確認
+            await fetch(url); 
+            cb.parentElement.style.opacity = "0.3";
             cb.disabled = true;
-            cb.checked = false; // チェックを外して視覚的に終了させる
-        }).catch(err => console.error("報告失敗:", err));
-    });
-    
-    await Promise.all(promises);
+            console.log("完了報告送信完了:", taskId);
+        } catch (err) {
+            console.error("報告エラー:", err);
+            // 失敗した場合は no-cors で再試行
+            fetch(url, { mode: 'no-cors' });
+            cb.parentElement.style.opacity = "0.3";
+        }
+    }
 }
 
     function startNextPhase() {
