@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ロープ (Rope) - Sequential Commander</title>
+    <title>ロープ (Rope) - Optimized Commander</title>
     <style>
         :root { 
             --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; 
@@ -13,15 +13,15 @@
         body { background-color: var(--bg); color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; transition: background-color 1.5s; }
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
         
-        .container { text-align: center; width: 100%; max-width: 500px; }
+        .container { text-align: center; width: 100%; max-width: 500px; display: flex; flex-direction: column; height: 100%; }
         
-        /* 任務同期ボタン：視認性を重視した元のサイズへ */
+        /* 任務同期ボタン：文字を巨大化し、視認性を極限まで向上 */
         #fetch-btn { 
-            width: 100%; background: #333; border: 1px solid #444; color: #fff; 
-            padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; 
-            cursor: pointer; margin-bottom: 20px; transition: 0.3s; 
+            width: 100%; background: #333; border: 2px solid #444; color: #fff; 
+            padding: 20px; font-size: 24px; font-weight: 900; border-radius: 12px; 
+            cursor: pointer; margin-bottom: 25px; transition: 0.3s; 
         }
-        #fetch-btn:hover { border-color: var(--accent); }
+        #fetch-btn:active { background: #555; transform: scale(0.98); }
 
         #timer { font-size: 90px; font-weight: 200; margin: 5px 0; color: var(--accent); letter-spacing: -2px; }
         body.forest-mode #timer { color: var(--forest-accent); }
@@ -30,24 +30,26 @@
         #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; }
         #phase-msg { font-size: 16px; color: #bbb; min-height: 3.5em; margin: 10px 0; line-height: 1.5; }
         
-        .content-area { background: var(--card); border-radius: 12px; padding: 10px; text-align: left; margin-bottom: 20px; border: 1px solid #333; min-height: 150px; }
+        /* コンテンツエリア：配置入れ換えのため調整 */
+        .content-area { background: var(--card); border-radius: 12px; padding: 10px; text-align: left; margin-bottom: 20px; border: 1px solid #333; min-height: 150px; flex-grow: 1; }
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
         
-        .task-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #2a2a2b; font-size: 18px; }
+        .task-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #2a2a2b; font-size: 20px; }
         .task-item.done { opacity: 0.2; text-decoration: line-through; }
-        .task-item input[type="checkbox"] { width: 28px; height: 28px; margin-right: 15px; }
+        .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; }
 
-        textarea#review-note { width: 100%; height: 140px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid #444; border-radius: 8px; padding: 12px; box-sizing: border-box; font-size: 16px; resize: none; }
+        textarea#review-note { width: 100%; height: 160px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid #444; border-radius: 8px; padding: 12px; box-sizing: border-box; font-size: 18px; resize: none; }
 
-        button#action-btn { width: 100%; padding: 25px; font-size: 24px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: 0.3s; color: white; }
-        .btn-start { background: var(--primary-btn); box-shadow: 0 8px 15px rgba(0,123,255,0.3); }
-        .btn-next { background: var(--success-btn); box-shadow: 0 8px 15px rgba(40,167,69,0.3); }
+        /* メインアクションボタン：最下部に配置 */
+        button#action-btn { width: 100%; padding: 30px; font-size: 28px; cursor: pointer; border: none; border-radius: 16px; font-weight: bold; transition: 0.3s; color: white; margin-bottom: 10px; }
+        .btn-start { background: var(--primary-btn); box-shadow: 0 8px 20px rgba(0,123,255,0.4); }
+        .btn-next { background: var(--success-btn); box-shadow: 0 8px 20px rgba(40,167,69,0.4); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期 (Google Tasks)</button>
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
     
     <div id="target-slot-name">待機中</div>
     <div id="phase-name">READY</div>
@@ -56,7 +58,7 @@
 
     <div style="text-align: left; margin-bottom: 8px; color: #666; font-size: 12px; text-transform: uppercase;">Missions / Log</div>
     <div id="main-content" class="content-area">
-        <div style="color: #444; padding: 10px;">スロット同期を待機しています。</div>
+        <div style="color: #444; padding: 10px;">待機中...</div>
     </div>
 
     <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
@@ -92,7 +94,7 @@
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
             refreshDisplay();
-            setTimeout(() => btn.textContent = "⚡ 任務を同期 (Google Tasks)", 2000);
+            setTimeout(() => btn.textContent = "⚡ 任務を同期", 2000);
         } catch (e) { alert("同期失敗"); }
     }
 
@@ -113,7 +115,7 @@
         document.getElementById('target-slot-name').textContent = key;
         const data = pomoData ? pomoData[key] : null;
         if (!data || data.tasks.length === 0) {
-            main.innerHTML = '<div style="color:#444; padding:10px;">（任務なし）</div>';
+            main.innerHTML = '<div style="color:#444; padding:20px;">（任務なし）</div>';
             return;
         }
         data.tasks.forEach(task => {
@@ -149,7 +151,7 @@
         for (let cb of Array.from(checks)) {
             const taskId = cb.getAttribute('data-id');
             const url = `${GAS_URL}?action=complete&listId=${listId}&taskId=${taskId}`;
-            fetch(url, { mode: 'no-cors' }); // 非同期送信
+            fetch(url, { mode: 'no-cors' }); 
             cb.parentElement.classList.add('done');
             cb.disabled = true;
         }
