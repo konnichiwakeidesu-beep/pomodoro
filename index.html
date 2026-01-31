@@ -57,9 +57,9 @@
 
     const phases = [
         { name: "Scout", time: 1 * 60, msg: "1分で何ができる？<br>まずは手を動かせ。" },
-        { name: "Rush", time: 20 * 60, msg: "集中せよ。完璧は不要だ。" },
-        { name: "Pass", time: 3 * 60, msg: "中継だ。粗くても投げろ。" },
-        { name: "Knot", time: 2 * 60, msg: "結び目を打て。次への一歩を刻め。" },
+        { name: "Rush", time: 20 * 60, msg: "集中せよ。完璧さは不要だ。" },
+        { name: "Pass", time: 3 * 60, msg: "中断だ。粗くてもまず投げろ。" },
+        { name: "Knot", time: 2 * 60, msg: "結び目を打て。次の一歩を刻め。" },
         { name: "Clean", time: 1 * 60, msg: "戦場を片付けよ。" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れ、英気を養え。" }
     ];
@@ -157,7 +157,7 @@
         document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
         currentPhaseIndex = 98;
         document.getElementById('phase-name').textContent = "REVIEW";
-        document.getElementById('phase-msg').innerHTML = "15分の振り返り。ログを刻み、<br>次のブロックの布陣を整えよ。";
+        document.getElementById('phase-msg').innerHTML = "15分の振り返り。ログを刻み、<br>次の時間の布陣を整えよ。";
         timeLeft = 15 * 60;
         const btn = document.getElementById('action-btn');
         btn.textContent = "振り返り完了、休息へ";
