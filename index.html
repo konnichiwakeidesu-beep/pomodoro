@@ -134,15 +134,17 @@
             return;
         }
 
-        data.tasks.forEach(task => {
+  data.tasks.forEach(task => {
             const div = document.createElement('div');
             div.className = "task-item";
-            // Clean, Brief フェーズではチェックボックスを消す
+            const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
             const showCheckbox = !["Clean", "Brief"].includes(currentPhaseName);
             
             if (showCheckbox) {
+                // チェックボックスがある状態
                 div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
             } else {
+                // チェックボックスがない状態でも、<span>でタイトルを囲む（取得しやすくするため）
                 div.innerHTML = `<span style="margin-left:45px; opacity:0.6;">${task.title}</span>`;
             }
             main.appendChild(div);
