@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ロープ (Rope) - Definitive Edition</title>
+    <title>ロープ (Rope) - Zen Commander</title>
     <style>
         :root { 
             --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; 
             --primary-btn: #007bff; --success-btn: #28a745;
             --forest-bg: #1b261e; --forest-accent: #a3b18a;
         }
-        /* 画面全体の高さを固定し、スクロールを制御 */
         html, body { height: 100%; overflow: hidden; margin: 0; }
         body { 
             background-color: var(--bg); color: #e0e0e0; font-family: sans-serif; 
@@ -18,20 +17,16 @@
             padding: 20px; box-sizing: border-box; transition: background-color 1.5s; 
         }
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
+        .container { display: flex; flex-direction: column; width: 100%; max-width: 500px; height: 100%; }
         
-        .container { 
-            display: flex; flex-direction: column; width: 100%; max-width: 500px; height: 100%; 
-        }
-        
-        /* 同期ボタン：同期後は非表示にする */
+        /* 巨大同期ボタン：初期は中心付近に配置 */
         #fetch-btn { 
             width: 100%; background: #333; border: 2px solid #444; color: #fff; 
-            padding: 16px; font-size: 19px; font-weight: 800; border-radius: 12px; 
-            cursor: pointer; margin-bottom: 10px; flex-shrink: 0;
+            padding: 30px; font-size: 24px; font-weight: 900; border-radius: 12px; 
+            cursor: pointer; margin-top: 20px; transition: 0.3s; flex-shrink: 0;
         }
         #fetch-btn.hidden { display: none; }
 
-        /* 上部情報：位置を固定 */
         .header-info { flex-shrink: 0; text-align: center; }
         #timer { font-size: 72px; font-weight: 200; margin: 0; color: var(--accent); letter-spacing: -2px; }
         body.forest-mode #timer { color: var(--forest-accent); }
@@ -39,27 +34,28 @@
         #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; }
         #phase-msg { font-size: 15px; color: #bbb; height: 3em; margin: 5px 0; line-height: 1.4; }
         
-        /* 中央：タスクリスト。ここだけがスクロール（手繰り寄せ）可能 */
+        /* メインエリア：同期前は非表示 */
         .content-area { 
-            background: var(--card); border-radius: 12px; padding: 5px; 
+            display: none; background: var(--card); border-radius: 12px; padding: 5px; 
             text-align: left; border: 1px solid #333; 
             flex-grow: 1; overflow-y: auto; margin-bottom: 15px;
-            -webkit-overflow-scrolling: touch; /* iOSでの滑らかなスクロール */
+            -webkit-overflow-scrolling: touch;
         }
+        .content-area.active { display: block; }
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
         
         .task-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #2a2a2b; font-size: 20px; }
         .task-item.done { opacity: 0.2; text-decoration: line-through; }
         .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; }
 
-        textarea#review-note { width: 100%; height: 100%; min-height: 200px; background: transparent; color: #fff; border: none; padding: 10px; box-sizing: border-box; font-size: 18px; resize: none; outline: none; }
+        textarea#review-note { width: 100%; height: 100%; min-height: 200px; background: transparent; color: #fff; border: none; padding: 15px; box-sizing: border-box; font-size: 18px; resize: none; outline: none; }
 
-        /* 下部：操作ボタン。常に最下部に鎮座 */
-        .footer-action { flex-shrink: 0; padding-bottom: 10px; }
+        /* 操作ボタン：同期前は非表示 */
+        .footer-action { display: none; flex-shrink: 0; padding-bottom: 10px; }
+        .footer-action.active { display: block; }
         button#action-btn { 
             width: 100%; padding: 25px; font-size: 24px; cursor: pointer; 
             border: none; border-radius: 16px; font-weight: bold; color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         .btn-start { background: var(--primary-btn); }
         .btn-next { background: var(--success-btn); }
@@ -68,20 +64,18 @@
 <body>
 
 <div class="container">
-    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
-    
     <div class="header-info">
-        <div id="target-slot-name">待機中</div>
-        <div id="phase-name">READY</div>
+        <div id="target-slot-name">READY</div>
+        <div id="phase-name">ROPE</div>
         <div id="timer">00:00</div>
-        <div id="phase-msg">同期後、出陣せよ。</div>
+        <div id="phase-msg">任務を同期して、出陣せよ。</div>
     </div>
 
-    <div id="main-content" class="content-area">
-        <div style="color: #444; padding: 20px; text-align: center;">任務を同期して、布陣を整えてください。</div>
-    </div>
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
 
-    <div class="footer-action">
+    <div id="main-content" class="content-area"></div>
+
+    <div id="footer-action" class="footer-action">
         <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
     </div>
 </div>
@@ -111,15 +105,19 @@
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
-            // 同期成功：ボタンを隠す
+            
+            // UI切替：同期ボタンを消し、メインエリアと操作ボタンを表示
             btn.classList.add('hidden');
+            document.getElementById('main-content').classList.add('active');
+            document.getElementById('footer-action').classList.add('active');
+            
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
             refreshDisplay();
         } catch (e) { 
-            btn.textContent = "❌ 同期失敗 再試行";
-            alert("同期失敗。GASの設定を確認してください。"); 
+            btn.textContent = "❌ 再試行";
+            alert("同期失敗。"); 
         }
     }
 
@@ -185,13 +183,14 @@
 
     function startNextPhase() {
         if (currentPhaseIndex === 99) {
-            // 休息終了 -> 最初の画面へ。同期ボタンを復活させる
+            // リセット：初期状態に戻す
             document.getElementById('fetch-btn').classList.remove('hidden');
+            document.getElementById('main-content').classList.remove('active');
+            document.getElementById('footer-action').classList.remove('active');
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
             setupStandby();
-            refreshDisplay();
             return;
         }
 
@@ -279,7 +278,7 @@
     function setupStandby() {
         document.getElementById('phase-name').textContent = "READY";
         document.getElementById('timer').textContent = "00:00";
-        document.getElementById('phase-msg').textContent = "同期後、出陣せよ。";
+        document.getElementById('phase-msg').textContent = "任務を同期して、出陣せよ。";
         const btn = document.getElementById('action-btn');
         btn.textContent = "出陣 (START)";
         btn.className = "btn-start";
