@@ -3,43 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ロープ (Rope) - Command Center</title>
+    <title>ロープ (Rope) - Task Commander</title>
     <style>
         :root { --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; --primary-btn: #007bff; --success-btn: #28a745; }
-        body { background-color: var(--bg); color: #e0e0e0; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        body { background-color: var(--bg); color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
         .container { text-align: center; width: 100%; max-width: 500px; }
         
-        #fetch-btn { width: 100%; background: #333; border: 1px solid #444; color: #fff; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
-        #fetch-btn:hover { background: #444; border-color: var(--accent); }
+        #fetch-btn { width: 100%; background: #333; border: 1px solid #444; color: #fff; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; cursor: pointer; margin-bottom: 20px; }
 
         #timer { font-size: 90px; font-weight: 200; margin: 5px 0; color: var(--accent); letter-spacing: -2px; }
-        #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; text-transform: uppercase; }
-        #phase-msg { font-size: 16px; color: #bbb; min-height: 4em; margin: 15px 0; line-height: 1.6; font-style: italic; }
+        #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 3.5em; margin: 15px 0; line-height: 1.5; }
         
-        .slot-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 25px; }
-        .pomo-slot { background: var(--card); border: 2px solid #333; border-radius: 12px; padding: 15px; cursor: pointer; transition: 0.3s; font-size: 14px; text-align: left; }
-        .pomo-slot strong { color: #888; display: block; margin-bottom: 5px; }
+        .slot-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
+        .pomo-slot { background: var(--card); border: 2px solid #333; border-radius: 12px; padding: 15px; cursor: pointer; text-align: left; }
         .pomo-slot.active { border-color: var(--primary-btn); background: #001a33; }
         .pomo-slot.empty { color: #555; border-style: dashed; }
 
-        .input-group { margin-bottom: 15px; text-align: left; width: 100%; }
-        label { font-size: 12px; color: #666; margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 1px; }
-        input, textarea { width: 100%; background: var(--card); border: 1px solid #333; color: #fff; padding: 14px; box-sizing: border-box; border-radius: 8px; font-size: 16px; outline: none; }
-        textarea { height: 70px; resize: none; }
-        
-        /* ボタン類 */
-        .controls { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .task-list-area { background: var(--card); border-radius: 12px; padding: 10px; text-align: left; margin-bottom: 20px; border: 1px solid #333; }
+        .task-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #2a2a2b; font-size: 18px; }
+        .task-item:last-child { border-bottom: none; }
+        .task-item input[type="checkbox"] { width: 24px; height: 24px; margin-right: 15px; cursor: pointer; }
+
         button#action-btn { width: 100%; padding: 20px; font-size: 22px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: 0.3s; color: white; }
-        .btn-start { background: var(--primary-btn); box-shadow: 0 10px 20px rgba(0,123,255,0.3); }
-        .btn-next { background: var(--success-btn); box-shadow: 0 10px 20px rgba(40,167,69,0.3); }
-        
-        button:disabled { background: #222 !important; color: #555 !important; box-shadow: none !important; cursor: default; }
+        .btn-start { background: var(--primary-btn); }
+        .btn-next { background: var(--success-btn); }
+        button:disabled { background: #222 !important; color: #555 !important; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務リストを同期する (Google Tasks)</button>
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期 (Google Tasks)</button>
     
     <div class="slot-container" id="slot-container"></div>
 
@@ -47,56 +42,31 @@
     <div id="timer">00:00</div>
     <div id="phase-msg">任務を選択し、出陣せよ。</div>
 
-<div class="input-group">
-    <label>Current Missions (Tap to Check)</label>
-    <div id="task-list-area" style="text-align: left; background: var(--card); padding: 10px; border-radius: 8px;">
-        </div>
+    <div style="text-align: left; margin-bottom: 8px; color: #666; font-size: 12px; text-transform: uppercase;">Missions in this slot</div>
+    <div id="task-list-area" class="task-list-area">
+        <div style="color: #444; padding: 10px;">スロットを選択すると任務が表示されます</div>
+    </div>
+
+    <div class="controls">
+        <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
+    </div>
 </div>
 
 <script>
-    // 完了報告用の関数を追加
-    async function reportTaskComplete(listId, taskId) {
-        const url = `${GAS_URL}?action=complete&listId=${listId}&taskId=${taskId}`;
-        await fetch(url); // 非同期で報告
-    }
-
-    function renderSlots() {
-        // ...スロット表示ロジック
-    }
-
-    function selectSlot(key, element) {
-        if (timerId) return;
-        const data = pomoTasks[key];
-        const listArea = document.getElementById('task-list-area');
-        listArea.innerHTML = "";
-
-        data.tasks.forEach(task => {
-            const div = document.createElement('div');
-            div.style.padding = "10px 0";
-            div.innerHTML = `<label style="display: flex; align-items: center; font-size: 18px;">
-                <input type="checkbox" class="task-check" data-id="${task.id}" data-listid="${data.listId}" style="width: 24px; height: 24px; margin-right: 15px;">
-                ${task.title}
-            </label>`;
-            listArea.appendChild(div);
-        });
-        
-        document.querySelectorAll('.pomo-slot').forEach(el => el.classList.remove('active'));
-        element.classList.add('active');
-    }
-</script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzka8ljRTcY9vdplfDElRITo7rjFNtQtUVdAFaMc0OuLPsBLIwlX42slLCSzIq2Gp9Zcg/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzl--EDBVlJWUkR3-znZPp_OynmK6skYc05lkK8nludk-yuS7Gh3iu0U_7jLCkD5gepPw/exec";
     let currentPhaseIndex = -1;
     let timerId = null;
     let timeLeft = 0;
     let audioCtx = null;
     let pomoTasks = {};
+    let currentListId = null;
 
     const phases = [
-        { name: "Scout", time: 1 * 60, msg: "1分だけやるとしたら、何ができる？" },
+        { name: "Scout", time: 1 * 60, msg: "1分だけやるとしたら何ができる？" },
         { name: "Rush", time: 20 * 60, msg: "集中せよ。完璧を求めるな。" },
         { name: "Pass", time: 3 * 60, msg: "中継の時間だ。粗くても投げろ。" },
-        { name: "Knot", time: 2 * 60, msg: "結び目を打て。思考をメモに残せ。" },
-        { name: "Clean", time: 1 * 60, msg: "戦場を片付けろ。次を即開始できるか？" },
+        { name: "Knot", time: 2 * 60, msg: "結び目を打て。次への一歩を刻め。" },
+        { name: "Clean", time: 1 * 60, msg: "戦場を片付けよ。準備は万全か？" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。英気を養え。" }
     ];
 
@@ -108,10 +78,9 @@
             pomoTasks = await res.json();
             renderSlots();
             btn.textContent = "✅ 同期完了";
-            setTimeout(() => btn.textContent = "⚡ 任務リストを同期する (Google Tasks)", 2000);
+            setTimeout(() => btn.textContent = "⚡ 任務を同期 (Google Tasks)", 2000);
         } catch (e) {
-            alert("通信失敗。GASの設定を確認してくれ。");
-            btn.textContent = "❌ 通信エラー";
+            alert("通信失敗。デプロイ設定を『全員』にしているか確認してくれ。");
         }
     }
 
@@ -119,66 +88,85 @@
         const container = document.getElementById('slot-container');
         container.innerHTML = "";
         ["ポモ①", "ポモ②", "ポモ③", "ポモ④"].forEach(key => {
-            const task = pomoTasks[key];
+            const data = pomoTasks[key];
             const div = document.createElement('div');
-            div.className = `pomo-slot ${task ? '' : 'empty'}`;
-            div.innerHTML = `<strong>${key}</strong>${task ? task.title : '（空・スキップ）'}`;
+            div.className = `pomo-slot ${data && data.tasks.length > 0 ? '' : 'empty'}`;
+            div.innerHTML = `<strong>${key}</strong>${data && data.tasks.length > 0 ? data.tasks[0].title + (data.tasks.length > 1 ? ' 他' : '') : '（空）'}`;
             div.onclick = function() { selectSlot(key, div); };
             container.appendChild(div);
         });
     }
 
     function selectSlot(key, element) {
-        if (timerId) return; // 遂行中は選択不可
-        const task = pomoTasks[key];
-        if (!task) return alert("このスロットは空だ。");
-        document.getElementById('task-title').value = task.title;
-        document.getElementById('task-detail').value = task.detail || "";
+        if (timerId) return;
+        const data = pomoTasks[key];
+        const listArea = document.getElementById('task-list-area');
+        listArea.innerHTML = "";
+        currentListId = data.listId;
+
+        if (!data || data.tasks.length === 0) {
+            listArea.innerHTML = '<div style="color:#444; padding:10px;">任務なし</div>';
+            return;
+        }
+
+        data.tasks.forEach(task => {
+            const div = document.createElement('div');
+            div.className = "task-item";
+            div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
+            listArea.appendChild(div);
+        });
+        
         document.querySelectorAll('.pomo-slot').forEach(el => el.classList.remove('active'));
         element.classList.add('active');
     }
 
-    function handleAction() {
+    async function handleAction() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
 
         if (!timerId) {
-            // 開始処理
             startNextPhase();
         } else {
-            // 完了（切り上げ）処理
             clearInterval(timerId);
             timerId = null;
             playBeep();
+            // 完了ボタンが押されたとき、チェック済みのタスクを報告
+            await reportCheckedTasks();
             startNextPhase();
         }
     }
 
+    async function reportCheckedTasks() {
+        const checks = document.querySelectorAll('.task-check:checked');
+        const promises = Array.from(checks).map(cb => {
+            const taskId = cb.getAttribute('data-id');
+            const url = `${GAS_URL}?action=complete&listId=${currentListId}&taskId=${taskId}`;
+            return fetch(url).then(() => {
+                cb.parentElement.style.opacity = "0.3"; // 報告完了を視覚化
+                cb.disabled = true;
+            });
+        });
+        await Promise.all(promises);
+    }
+
     function startNextPhase() {
         currentPhaseIndex++;
-        
-        // 全フェーズ終了時
         if (currentPhaseIndex >= phases.length) {
             currentPhaseIndex = -1;
             setupStandby();
             return;
         }
-
         const p = phases[currentPhaseIndex];
         document.getElementById('phase-name').textContent = p.name;
         document.getElementById('phase-msg').innerHTML = p.msg;
         timeLeft = p.time;
-        
-        // UI更新: ボタンを「完了」に変更
         const btn = document.getElementById('action-btn');
-        btn.textContent = `${p.name}を完了して次へ`;
+        btn.textContent = `${p.name}完了 (NEXT)`;
         btn.className = "btn-next";
-        
         startTimer();
     }
 
     function startTimer() {
-        if (timerId) clearInterval(timerId);
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
@@ -186,6 +174,7 @@
                 clearInterval(timerId);
                 timerId = null;
                 playBeep();
+                reportCheckedTasks(); // 時間切れ時もチェック済みは報告
                 startNextPhase();
             }
         }, 1000);
@@ -202,9 +191,6 @@
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             osc.start(); osc.stop(audioCtx.currentTime + 0.5);
         } catch(e) {}
     }
