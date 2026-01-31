@@ -95,20 +95,37 @@
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
-    async function fetchTasks() {
+async function fetchTasks() {
         const btn = document.getElementById('fetch-btn');
+        if (btn.disabled) return; // 二重押し防止
+
         btn.textContent = "偵察中...";
+        btn.disabled = true; 
+
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
+            
+            // 視覚的な切り替え
             btn.classList.add('hidden');
             document.getElementById('main-content').classList.add('active');
             document.getElementById('footer-action').classList.add('active');
+            
+            // 状態の初期化
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
+            
+            // 表示の更新
+            setupStandby(); // これで「出陣 (START)」ボタンの状態を作る
             refreshDisplay();
-        } catch (e) { alert("同期失敗。"); btn.textContent = "❌ 再試行"; }
+            
+        } catch (e) { 
+            console.error(e);
+            alert("同期失敗。"); 
+            btn.textContent = "⚡ 任務を同期";
+            btn.disabled = false;
+        }
     }
 function refreshDisplay() {
     const main = document.getElementById('main-content');
