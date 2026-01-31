@@ -77,7 +77,7 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwxdSKt2gETr_2mRV7sQ4RFKS7j_c79eBAJAX36t2bfEU_gyW0TDHi5hnPbH2VDBi46Jw/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwxdSKt2gETr_2mRV7sQ4RFKS7j_c79eBAJAX36t2bfEU_gyW0TDHi5hnPbH2VDBi46Jw/exec";
     const slotKeys = ["ポモ①", "ポモ②", "ポモ③", "ポモ④"];
     let currentSlotIndex = 0;
     let currentPhaseIndex = -1;
@@ -91,168 +91,122 @@
         { name: "Rush", time: 20 * 60, msg: "集中。完璧を求めるな。" },
         { name: "Pass", time: 3 * 60, msg: "中継。粗くても投げろ。" },
         { name: "Knot", time: 2 * 60, msg: "結び目。積み残しを凝視せよ。" },
-        { name: "Clean", time: 1 * 60, msg: "戦場を片付けよ。" },
+        { name: "Clean", time: 1 * 60, msg: "戦場を清めよ。" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
-async function fetchTasks() {
+    // --- 1. 同期・初期化 ---
+    async function fetchTasks() {
         const btn = document.getElementById('fetch-btn');
-        if (btn.disabled) return; // 二重押し防止
-
         btn.textContent = "偵察中...";
-        btn.disabled = true; 
-
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
             
-            // 視覚的な切り替え
+            // 画面を戦闘モードへ
             btn.classList.add('hidden');
             document.getElementById('main-content').classList.add('active');
             document.getElementById('footer-action').classList.add('active');
             
-            // 状態の初期化
+            // 状態リセット
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
             
-            // 表示の更新
-            setupStandby(); // これで「出陣 (START)」ボタンの状態を作る
+            setupStandby(); 
             refreshDisplay();
-            
-        } catch (e) { 
-            console.error(e);
-            alert("同期失敗。"); 
-            btn.textContent = "⚡ 任務を同期";
-            btn.disabled = false;
+        } catch (e) { alert("同期失敗。"); btn.textContent = "❌ 再試行"; }
+    }
+
+    function setupStandby() {
+        document.getElementById('target-slot-name').textContent = "READY";
+        document.getElementById('phase-name').textContent = "ROPE";
+        document.getElementById('timer').textContent = "00:00";
+        document.getElementById('phase-msg').textContent = "任務を同期して、出陣せよ。";
+        const btn = document.getElementById('action-btn');
+        btn.textContent = "出陣 (START)";
+        btn.className = "btn-start";
+    }
+
+    // --- 2. 表示更新 ---
+    function refreshDisplay() {
+        const main = document.getElementById('main-content');
+        main.innerHTML = "";
+        const currentPhaseName = (currentPhaseIndex >= 0 && currentPhaseIndex < phases.length) ? phases[currentPhaseIndex].name : "";
+
+        // 特殊画面: REVIEW (98) or FOREST REST (99)
+        if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
+            document.getElementById('target-slot-name').textContent = "GREAT REST";
+            if (currentPhaseIndex === 98) {
+                const area = document.createElement('textarea');
+                area.id = "review-note";
+                area.placeholder = "戦果や課題を記せ...";
+                main.appendChild(area);
+            } else {
+                main.innerHTML = `<div style="height:100%; display:flex; align-items:center; justify-content:center; font-style:italic; opacity:0.6;">Deep Relaxation...</div>`;
+            }
+            return;
         }
-    }
-function refreshDisplay() {
-    const main = document.getElementById('main-content');
-    main.innerHTML = "";
-    
-    // 現在のフェーズ名を取得
-    const currentPhaseName = currentPhaseIndex >= 0 ? phases[currentPhaseIndex].name : "";
 
-    // 1. Review または Forest Rest (全ポモ終了後)
-    if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
-        const area = document.createElement('textarea');
-        area.id = "review-note";
-        area.placeholder = "戦果や課題を記せ...";
-        main.appendChild(area);
-        document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
-        return;
-    }
+        // 特殊画面: Clean / Brief
+        if (["Clean", "Brief"].includes(currentPhaseName)) {
+            main.innerHTML = `<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#666; font-style:italic;">${currentPhaseName === "Clean" ? "戦場を清めよ..." : "心を解き放て..."}</div>`;
+            return;
+        }
 
-    // 2. Clean または Brief (各ポモの締め)
-    // ここではタスクを表示せず、真っさらな状態にする
-    if (["Clean", "Brief"].includes(currentPhaseName)) {
-        main.innerHTML = `
-            <div style="height: 100%; display: flex; align-items: center; justify-content: center; color: #666; font-style: italic; font-size: 18px;">
-                ${currentPhaseName === "Clean" ? "戦場を清めよ..." : "心を解き放て..."}
-            </div>`;
-        return;
+        // 通常画面
+        const key = slotKeys[currentSlotIndex];
+        document.getElementById('target-slot-name').textContent = key;
+        const data = pomoData ? pomoData[key] : null;
+        if (!data || data.tasks.length === 0) {
+            main.innerHTML = '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
+            return;
+        }
+        data.tasks.forEach(task => {
+            const div = document.createElement('div');
+            div.className = "task-item";
+            div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
+            main.appendChild(div);
+        });
     }
 
-    // 3. 通常フェーズ (Scout, Rush, Pass, Knot)
-    const key = slotKeys[currentSlotIndex];
-    document.getElementById('target-slot-name').textContent = key;
-    
-    const data = pomoData ? pomoData[key] : null;
-    if (!data || data.tasks.length === 0) {
-        main.innerHTML = '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
-        return;
-    }
-
-    data.tasks.forEach(task => {
-        const div = document.createElement('div');
-        div.className = "task-item";
-        div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
-        main.appendChild(div);
-    });
-}
-
+    // --- 3. 進行管理 ---
     async function handleAction() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
         if (timerId) {
             clearInterval(timerId);
             timerId = null;
-            notifyUser();
-            await reportCheckedTasks(); // ここで完了タスクをデータから削除する
+            await reportCheckedTasks();
             startNextPhase();
         } else {
-            if (!pomoData) return alert("先に同期を。");
             startNextPhase();
         }
     }
 
-async function reportCheckedTasks() {
-    // 振り返りや休息フェーズ、またはデータがない場合は何もしない
-    if (currentPhaseIndex >= 98 || !pomoData) return;
-    
-    const slotName = slotKeys[currentSlotIndex]; // 「ポモ①」など
-    const checks = document.querySelectorAll('.task-check:checked');
-    
-    for (let cb of Array.from(checks)) {
-        if (cb.disabled) continue; 
-        
-        // タスクのタイトルを正確に取得
-        const taskTitle = cb.nextElementSibling.textContent.trim();
-        const taskId = cb.getAttribute('data-id'); 
-        
-        // 先ほど成功した「必中URL」と同じパラメータ構成
-        const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
-        
-        // 伝令を放つ（成功・失敗を待たずに次へ進む）
-        fetch(url, { mode: 'no-cors' });
-        
-        // 画面上の処理：リストから削除し、チェックボックスを無効化
-        pomoData[slotName].tasks = pomoData[slotName].tasks.filter(t => t.id !== taskId);
-        cb.parentElement.classList.add('done');
-        cb.disabled = true;
-    }
-}
-
-function startNextPhase() {
+    function startNextPhase() {
+        // 全行程終了後のリセット
         if (currentPhaseIndex === 99) {
-            // --- 真の帰還プロトコル ---
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
-            pomoData = null; // データを一度清算する
-            
-            // 視覚的なリセット
+            pomoData = null;
             document.body.classList.remove('forest-mode');
             document.getElementById('main-content').classList.remove('active');
             document.getElementById('footer-action').classList.remove('active');
-            
-            // 同期ボタンの完全復活
-            const fetchBtn = document.getElementById('fetch-btn');
-            fetchBtn.classList.remove('hidden');
-            fetchBtn.textContent = "⚡ 任務を同期";
-            fetchBtn.disabled = false; // 念のため無効化を解除
-            
-            // ステータス表示を元に戻す
-            document.getElementById('target-slot-name').textContent = "READY";
-            document.getElementById('main-content').innerHTML = "";
-            
-            return;
-        }
-        // ...（以下、次のフェーズへ進む既存の処理）
-
-        if (currentPhaseIndex === 98) {
-            startForestRest();
+            const fBtn = document.getElementById('fetch-btn');
+            fBtn.classList.remove('hidden');
+            fBtn.textContent = "⚡ 任務を同期";
+            setupStandby();
             return;
         }
 
+        // 通常のフェーズ進行
         currentPhaseIndex++;
         
         if (currentPhaseIndex >= phases.length) {
             currentPhaseIndex = -1;
             currentSlotIndex++;
             if (currentSlotIndex >= slotKeys.length) {
-                startGrandBrief();
+                startGrandReview(); // ポモ④終了後
             } else {
                 setupStandby();
                 refreshDisplay();
@@ -262,22 +216,20 @@ function startNextPhase() {
 
         const p = phases[currentPhaseIndex];
         document.getElementById('phase-name').textContent = p.name;
-        document.getElementById('phase-msg').innerHTML = p.msg;
+        document.getElementById('phase-msg').textContent = p.msg;
         timeLeft = p.time;
-        
-        const btn = document.getElementById('action-btn');
-        btn.textContent = `${p.name}完了 (NEXT)`;
-        btn.className = "btn-next";
+        document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
+        document.getElementById('action-btn').className = "btn-next";
         refreshDisplay();
         startTimer();
     }
 
-    function startGrandBrief() {
+    function startGrandReview() {
         document.body.classList.add('forest-mode');
         currentPhaseIndex = 98;
         document.getElementById('phase-name').textContent = "REVIEW";
-        document.getElementById('phase-msg').innerHTML = "戦果を記せ。";
-        timeLeft = 15 * 60;
+        document.getElementById('phase-msg').textContent = "戦果を記せ。";
+        timeLeft = 15 * 60; // 15分
         const btn = document.getElementById('action-btn');
         btn.textContent = "振り返り完了";
         btn.className = "btn-next";
@@ -288,8 +240,8 @@ function startNextPhase() {
     function startForestRest() {
         currentPhaseIndex = 99;
         document.getElementById('phase-name').textContent = "FOREST REST";
-        document.getElementById('phase-msg').innerHTML = "深い休息を。";
-        timeLeft = 15 * 60;
+        document.getElementById('phase-msg').textContent = "深い休息を。";
+        timeLeft = 15 * 60; // 15分
         const btn = document.getElementById('action-btn');
         btn.textContent = "休息終了 (EXIT)";
         btn.className = "btn-start";
@@ -299,15 +251,16 @@ function startNextPhase() {
 
     function startTimer() {
         if (timerId) clearInterval(timerId);
+        updateDisplay();
         timerId = setInterval(() => {
             timeLeft--;
             updateDisplay();
             if (timeLeft <= 0) {
                 clearInterval(timerId);
                 timerId = null;
-                notifyUser();
-                reportCheckedTasks();
-                startNextPhase();
+                if (currentPhaseIndex === 98) startForestRest();
+                else if (currentPhaseIndex === 99) {} // ユーザーのEXIT待ち
+                else { reportCheckedTasks(); startNextPhase(); }
             }
         }, 1000);
     }
@@ -318,17 +271,16 @@ function startNextPhase() {
         document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     }
 
-    function notifyUser() {
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    }
-
-    function setupStandby() {
-        document.getElementById('phase-name').textContent = "ROPE";
-        document.getElementById('timer').textContent = "00:00";
-        document.getElementById('phase-msg').textContent = "任務を同期して、出陣せよ。";
-        const btn = document.getElementById('action-btn');
-        btn.textContent = "出陣 (START)";
-        btn.className = "btn-start";
+    async function reportCheckedTasks() {
+        if (currentPhaseIndex >= 98 || !pomoData) return;
+        const slotName = slotKeys[currentSlotIndex];
+        const checks = document.querySelectorAll('.task-check:checked');
+        for (let cb of Array.from(checks)) {
+            const taskTitle = cb.nextElementSibling.textContent.trim();
+            const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
+            fetch(url, { mode: 'no-cors' });
+            cb.parentElement.classList.add('done');
+        }
     }
 </script>
 </body>
