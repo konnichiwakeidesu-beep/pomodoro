@@ -136,18 +136,24 @@
         }
     }
 
-    async function reportCheckedTasks() {
-        const checks = document.querySelectorAll('.task-check:checked');
-        const promises = Array.from(checks).map(cb => {
-            const taskId = cb.getAttribute('data-id');
-            const url = `${GAS_URL}?action=complete&listId=${currentListId}&taskId=${taskId}`;
-            return fetch(url).then(() => {
-                cb.parentElement.style.opacity = "0.3"; // 報告完了を視覚化
-                cb.disabled = true;
-            });
-        });
-        await Promise.all(promises);
-    }
+// HTML内の該当箇所を差し替え
+async function reportCheckedTasks() {
+    const checks = document.getElementById('task-list-area').querySelectorAll('.task-check:checked');
+    if (checks.length === 0) return;
+
+    const promises = Array.from(checks).map(cb => {
+        const taskId = cb.getAttribute('data-id');
+        // 通信設定に mode: 'no-cors' を追加
+        const url = `${GAS_URL}?action=complete&listId=${currentListId}&taskId=${taskId}`;
+        return fetch(url, { mode: 'no-cors' }).then(() => {
+            cb.parentElement.style.opacity = "0.3"; 
+            cb.disabled = true;
+            cb.checked = false; // チェックを外して視覚的に終了させる
+        }).catch(err => console.error("報告失敗:", err));
+    });
+    
+    await Promise.all(promises);
+}
 
     function startNextPhase() {
         currentPhaseIndex++;
