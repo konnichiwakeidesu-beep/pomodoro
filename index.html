@@ -166,6 +166,7 @@
     }
 
 async function reportCheckedTasks() {
+    // 振り返りや休息フェーズ、またはデータがない場合は何もしない
     if (currentPhaseIndex >= 98 || !pomoData) return;
     
     const slotName = slotKeys[currentSlotIndex]; // 「ポモ①」など
@@ -173,15 +174,18 @@ async function reportCheckedTasks() {
     
     for (let cb of Array.from(checks)) {
         if (cb.disabled) continue; 
-        const taskTitle = cb.nextElementSibling.textContent; // タスク名を取得
-        const taskId = cb.getAttribute('data-id'); // 画面消去用
         
-        // パラメータを ID ではなく「名前」で送る
+        // タスクのタイトルを正確に取得
+        const taskTitle = cb.nextElementSibling.textContent.trim();
+        const taskId = cb.getAttribute('data-id'); 
+        
+        // 先ほど成功した「必中URL」と同じパラメータ構成
         const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
         
+        // 伝令を放つ（成功・失敗を待たずに次へ進む）
         fetch(url, { mode: 'no-cors' });
         
-        // 画面上の処理
+        // 画面上の処理：リストから削除し、チェックボックスを無効化
         pomoData[slotName].tasks = pomoData[slotName].tasks.filter(t => t.id !== taskId);
         cb.parentElement.classList.add('done');
         cb.disabled = true;
