@@ -171,17 +171,25 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbwxdSKt2gETr_2mRV7sQ4RF
     }
 
     // --- 3. 進行管理 ---
-    async function handleAction() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (timerId) {
-            clearInterval(timerId);
-            timerId = null;
-            await reportCheckedTasks();
-            startNextPhase();
+async function handleAction() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    if (timerId) {
+        // タイマー動作中にボタンを押した場合（手動完了）
+        clearInterval(timerId);
+        timerId = null;
+        await reportCheckedTasks();
+
+        if (currentPhaseIndex === 98) {
+            startForestRest(); // Review中に押したらForestへ
         } else {
             startNextPhase();
         }
+    } else {
+        // タイマー停止中にボタンを押した場合（開始）
+        startNextPhase();
     }
+}
 
     function startNextPhase() {
         // 全行程終了後のリセット
@@ -271,17 +279,23 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbwxdSKt2gETr_2mRV7sQ4RF
         document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     }
 
-    async function reportCheckedTasks() {
-        if (currentPhaseIndex >= 98 || !pomoData) return;
-        const slotName = slotKeys[currentSlotIndex];
-        const checks = document.querySelectorAll('.task-check:checked');
-        for (let cb of Array.from(checks)) {
-            const taskTitle = cb.nextElementSibling.textContent.trim();
-            const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
-            fetch(url, { mode: 'no-cors' });
-            cb.parentElement.classList.add('done');
-        }
+async function reportCheckedTasks() {
+    if (currentPhaseIndex >= 98 || !pomoData) return;
+    const slotName = slotKeys[currentSlotIndex];
+    const checks = document.querySelectorAll('.task-check:checked');
+    
+    for (let cb of Array.from(checks)) {
+        const taskTitle = cb.nextElementSibling.textContent.trim();
+        const taskId = cb.getAttribute('data-id');
+        const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
+        
+        fetch(url, { mode: 'no-cors' });
+
+        // 【修正】メモリからも画面からも消去する
+        pomoData[slotName].tasks = pomoData[slotName].tasks.filter(t => t.id !== taskId);
+        cb.parentElement.remove(); // 画面から消す
     }
+}
 </script>
 </body>
 </html>
