@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ロープ (Rope) - Production Test</title>
+    <title>ロープ (Rope) - Sequential Commander</title>
     <style>
         :root { 
             --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; 
@@ -12,43 +12,61 @@
         }
         body { background-color: var(--bg); color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; transition: background-color 1.5s; }
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
+        
         .container { text-align: center; width: 100%; max-width: 500px; }
+        
+        /* 任務同期ボタン：視認性を重視した元のサイズへ */
+        #fetch-btn { 
+            width: 100%; background: #333; border: 1px solid #444; color: #fff; 
+            padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; 
+            cursor: pointer; margin-bottom: 20px; transition: 0.3s; 
+        }
+        #fetch-btn:hover { border-color: var(--accent); }
+
         #timer { font-size: 90px; font-weight: 200; margin: 5px 0; color: var(--accent); letter-spacing: -2px; }
         body.forest-mode #timer { color: var(--forest-accent); }
-        #target-slot-name { font-size: 24px; color: var(--primary-btn); font-weight: bold; }
+        
+        #target-slot-name { font-size: 24px; color: var(--primary-btn); font-weight: bold; margin-bottom: 5px; }
         #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; }
-        #phase-msg { font-size: 16px; color: #bbb; min-height: 3.5em; margin: 10px 0; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 3.5em; margin: 10px 0; line-height: 1.5; }
+        
         .content-area { background: var(--card); border-radius: 12px; padding: 10px; text-align: left; margin-bottom: 20px; border: 1px solid #333; min-height: 150px; }
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
+        
         .task-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #2a2a2b; font-size: 18px; }
         .task-item.done { opacity: 0.2; text-decoration: line-through; }
-        textarea#review-note { width: 100%; height: 120px; background: rgba(0,0,0,0.2); color: #fff; border: 1px solid #444; border-radius: 8px; padding: 10px; box-sizing: border-box; font-size: 16px; }
-        button#action-btn { width: 100%; padding: 25px; font-size: 22px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; color: white; }
-        .btn-start { background: var(--primary-btn); }
-        .btn-next { background: var(--success-btn); }
+        .task-item input[type="checkbox"] { width: 28px; height: 28px; margin-right: 15px; }
+
+        textarea#review-note { width: 100%; height: 140px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid #444; border-radius: 8px; padding: 12px; box-sizing: border-box; font-size: 16px; resize: none; }
+
+        button#action-btn { width: 100%; padding: 25px; font-size: 24px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: 0.3s; color: white; }
+        .btn-start { background: var(--primary-btn); box-shadow: 0 8px 15px rgba(0,123,255,0.3); }
+        .btn-next { background: var(--success-btn); box-shadow: 0 8px 15px rgba(40,167,69,0.3); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <button id="fetch-btn" onclick="fetchTasks()" style="width:100%; padding:10px; margin-bottom:15px; background:#333; color:#fff; border:none; border-radius:8px; cursor:pointer;">⚡ 任務同期</button>
-    <div id="target-slot-name">READY</div>
-    <div id="phase-name">STANDBY</div>
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期 (Google Tasks)</button>
+    
+    <div id="target-slot-name">待機中</div>
+    <div id="phase-name">READY</div>
     <div id="timer">00:00</div>
-    <div id="phase-msg">同期して出陣せよ。</div>
+    <div id="phase-msg">同期後、出陣せよ。</div>
 
+    <div style="text-align: left; margin-bottom: 8px; color: #666; font-size: 12px; text-transform: uppercase;">Missions / Log</div>
     <div id="main-content" class="content-area">
-        </div>
+        <div style="color: #444; padding: 10px;">スロット同期を待機しています。</div>
+    </div>
 
     <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
 </div>
 
 <script>
-    // ※必ず最新のGAS URLに書き換えてください
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwLge-06TTQIhFgf_DHLx_rUOr-1Dx6PmavTbwpe9abBuc1VnP9wQRQdgNmZ2-XcRvw8Q/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzUNR_iIjjMGNS_fsdRzagQkkwoza24CmY14FesQNnbvkDkyxdESrMzR2bOjvlhLgDMqQ/exec";
     const slotKeys = ["ポモ①", "ポモ②", "ポモ③", "ポモ④"];
     let currentSlotIndex = 0;
-    let currentPhaseIndex = -1; // -1: Ready, 0-5: Normal, 98: Review, 99: Rest
+    let currentPhaseIndex = -1;
     let timerId = null;
     let timeLeft = 0;
     let audioCtx = null;
@@ -64,15 +82,18 @@
     ];
 
     async function fetchTasks() {
+        const btn = document.getElementById('fetch-btn');
+        btn.textContent = "偵察中...";
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
+            btn.textContent = "✅ 同期完了";
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
             refreshDisplay();
-            alert("同期完了。布陣を整えたぞ。");
-        } catch (e) { alert("同期失敗。GASの設定を確認せよ。"); }
+            setTimeout(() => btn.textContent = "⚡ 任務を同期 (Google Tasks)", 2000);
+        } catch (e) { alert("同期失敗"); }
     }
 
     function refreshDisplay() {
@@ -80,12 +101,11 @@
         main.innerHTML = "";
         
         if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
-            // Review/Rest時はテキストエリアを表示
             const area = document.createElement('textarea');
             area.id = "review-note";
             area.placeholder = "戦果や次への課題を記せ...";
             main.appendChild(area);
-            document.getElementById('target-slot-name').textContent = "BLOCK COMPLETE";
+            document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
             return;
         }
 
@@ -93,58 +113,50 @@
         document.getElementById('target-slot-name').textContent = key;
         const data = pomoData ? pomoData[key] : null;
         if (!data || data.tasks.length === 0) {
-            main.innerHTML = '<div style="padding:20px; color:#666;">（任務なし）</div>';
-        } else {
-            data.tasks.forEach(task => {
-                const div = document.createElement('div');
-                div.className = "task-item";
-                div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}" onchange="this.parentElement.classList.toggle('done')"> <span>${task.title}</span>`;
-                main.appendChild(div);
-            });
+            main.innerHTML = '<div style="color:#444; padding:10px;">（任務なし）</div>';
+            return;
         }
+        data.tasks.forEach(task => {
+            const div = document.createElement('div');
+            div.className = "task-item";
+            div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}" onchange="this.parentElement.classList.toggle('done')"> <span>${task.title}</span>`;
+            main.appendChild(div);
+        });
     }
 
     async function handleAction() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
         if (timerId) {
-            // 進行中に「完了」を押した場合
             clearInterval(timerId);
             timerId = null;
             notifyUser();
             await reportCheckedTasks();
             startNextPhase();
         } else {
-            // 待機中に「開始」を押した場合
-            if (!pomoData) return alert("まずは同期せよ。");
+            if (!pomoData) return alert("先に同期を。");
             startNextPhase();
         }
     }
 
     async function reportCheckedTasks() {
-        if (currentPhaseIndex >= 98) return; // 休憩中は報告なし
-        
+        if (currentPhaseIndex >= 98) return;
         const key = slotKeys[currentSlotIndex];
         const listId = pomoData[key].listId;
         const checks = document.querySelectorAll('.task-check:checked');
         
-        // 画面上から即座に消す（視覚的フィードバック）
-        checks.forEach(cb => {
-            cb.parentElement.classList.add('done');
-            cb.disabled = true;
-        });
-
-        // GASへ報告（一つずつ確実に。no-corsだがURLを叩くこと自体が命令になる）
-        for (let cb of checks) {
+        for (let cb of Array.from(checks)) {
             const taskId = cb.getAttribute('data-id');
             const url = `${GAS_URL}?action=complete&listId=${listId}&taskId=${taskId}`;
-            fetch(url, { mode: 'no-cors' }).catch(e => console.error("報告漏れ:", e));
+            fetch(url, { mode: 'no-cors' }); // 非同期送信
+            cb.parentElement.classList.add('done');
+            cb.disabled = true;
         }
     }
 
     function startNextPhase() {
         if (currentPhaseIndex === 99) {
-            // 休息終了 -> 最初に戻る
             currentSlotIndex = 0;
             currentPhaseIndex = -1;
             document.body.classList.remove('forest-mode');
@@ -154,7 +166,6 @@
         }
 
         if (currentPhaseIndex === 98) {
-            // Review終了 -> Restへ
             startForestRest();
             return;
         }
@@ -162,11 +173,10 @@
         currentPhaseIndex++;
         
         if (currentPhaseIndex >= phases.length) {
-            // 1ポモ（30分）終了
             currentPhaseIndex = -1;
             currentSlotIndex++;
             if (currentSlotIndex >= slotKeys.length) {
-                startGrandBrief(); // 4ポモ終わったら大休憩へ
+                startGrandBrief();
             } else {
                 setupStandby();
                 refreshDisplay();
@@ -207,6 +217,7 @@
         const btn = document.getElementById('action-btn');
         btn.textContent = "休息終了 (READY)";
         btn.className = "btn-start";
+        refreshDisplay();
         startTimer();
     }
 
@@ -219,7 +230,7 @@
                 clearInterval(timerId);
                 timerId = null;
                 notifyUser();
-                reportCheckedTasks(); // 時間切れ時にも報告
+                reportCheckedTasks();
                 startNextPhase();
             }
         }, 1000);
@@ -233,7 +244,6 @@
 
     function notifyUser() {
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        // ビープ音（略）
     }
 
     function setupStandby() {
