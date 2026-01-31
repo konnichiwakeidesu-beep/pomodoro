@@ -111,7 +111,6 @@
         document.getElementById('task-title').value = task.title;
         document.getElementById('task-detail').value = task.detail || "";
         
-        // アクティブ表示の切り替え
         document.querySelectorAll('.pomo-slot').forEach(el => el.classList.remove('active'));
         element.classList.add('active');
     }
