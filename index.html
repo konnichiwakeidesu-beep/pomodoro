@@ -4,7 +4,279 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ロープ (Rope) - Sequential Commander</title>
+    <style><!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ロープ (Rope) - Ultimate Edition</title>
     <style>
+        :root { 
+            --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; 
+            --primary-btn: #007bff; --success-btn: #28a745;
+            --forest-bg: #1b261e; --forest-accent: #a3b18a;
+        }
+        body { background-color: var(--bg); color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; transition: background-color 2s, color 2s; overflow-x: hidden; }
+        
+        /* 森のUI */
+        body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
+        body.forest-mode #timer { color: var(--forest-accent); text-shadow: 0 0 20px rgba(163, 177, 138, 0.4); }
+        body.forest-mode .task-list-area { background: #344e41; border-color: #588157; }
+
+        .container { text-align: center; width: 100%; max-width: 500px; }
+        #fetch-btn { width: 100%; background: #333; border: 1px solid #444; color: #fff; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 12px; cursor: pointer; margin-bottom: 20px; }
+        #timer { font-size: 90px; font-weight: 200; margin: 5px 0; color: var(--accent); letter-spacing: -2px; transition: color 2s; }
+        #target-slot-name { font-size: 24px; color: var(--primary-btn); font-weight: bold; margin-bottom: 5px; }
+        #phase-name { font-size: 32px; color: #ffcc00; font-weight: bold; }
+        #phase-msg { font-size: 16px; color: #bbb; min-height: 3em; margin: 10px 0; line-height: 1.5; }
+        .task-list-area { background: var(--card); border-radius: 12px; padding: 10px; text-align: left; margin-bottom: 20px; border: 1px solid #333; min-height: 100px; transition: all 1s; }
+        .task-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #2a2a2b; font-size: 18px; }
+        .task-item input[type="checkbox"] { width: 28px; height: 28px; margin-right: 15px; }
+        button#action-btn { width: 100%; padding: 25px; font-size: 24px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: 0.3s; color: white; }
+        .btn-start { background: var(--primary-btn); }
+        .btn-next { background: var(--success-btn); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期 (Google Tasks)</button>
+    <div id="target-slot-name">待機中</div>
+    <div id="phase-name">READY</div>
+    <div id="timer">00:00</div>
+    <div id="phase-msg">同期後、出陣せよ。</div>
+    <div style="text-align: left; margin-bottom: 8px; color: #666; font-size: 12px;">CURRENT MISSIONS</div>
+    <div id="task-list-area" class="task-list-area"></div>
+    <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
+</div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzUNR_iIjjMGNS_fsdRzagQkkwoza24CmY14FesQNnbvkDkyxdESrMzR2bOjvlhLgDMqQ/exec";
+    const slotKeys = ["ポモ①", "ポモ②", "ポモ③", "ポモ④"];
+    let currentSlotIndex = 0;
+    let currentPhaseIndex = -1;
+    let timerId = null;
+    let timeLeft = 0;
+    let audioCtx = null;
+    let pomoData = null;
+    let fireNode = null; // 焚き火の音用
+
+    const phases = [
+        { name: "Scout", time: 1 * 60, msg: "1分で何ができる？<br>まずは手を動かせ。" },
+        { name: "Rush", time: 20 * 60, msg: "集中せよ。完璧は不要だ。" },
+        { name: "Pass", time: 3 * 60, msg: "中継だ。粗くても投げろ。" },
+        { name: "Knot", time: 2 * 60, msg: "結び目を打て。次への一歩を刻め。" },
+        { name: "Clean", time: 1 * 60, msg: "戦場を片付けよ。" },
+        { name: "Brief", time: 3 * 60, msg: "完全に離れ、英気を養え。" }
+    ];
+
+    async function fetchTasks() {
+        const btn = document.getElementById('fetch-btn');
+        btn.textContent = "偵察中...";
+        try {
+            const res = await fetch(GAS_URL);
+            pomoData = await res.json();
+            btn.textContent = "✅ 同期完了";
+            currentSlotIndex = 0;
+            refreshDisplay();
+            document.body.classList.remove('forest-mode');
+            stopFireSound();
+            setTimeout(() => btn.textContent = "⚡ 任務を同期", 2000);
+        } catch (e) { alert("同期失敗"); }
+    }
+
+    function refreshDisplay() {
+        const key = slotKeys[currentSlotIndex];
+        const data = pomoData ? pomoData[key] : null;
+        document.getElementById('target-slot-name').textContent = key || "WAIT";
+        const listArea = document.getElementById('task-list-area');
+        listArea.innerHTML = "";
+        if (!data || data.tasks.length === 0) {
+            listArea.innerHTML = '<div style="color:#444; padding:10px;">（任務なし）</div>';
+            return;
+        }
+        data.tasks.forEach(task => {
+            const div = document.createElement('div');
+            div.className = "task-item";
+            div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}"> <span>${task.title}</span>`;
+            listArea.appendChild(div);
+        });
+    }
+
+    async function handleAction() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        if (timerId) {
+            clearInterval(timerId);
+            timerId = null;
+            notifyUser(); // 震動と音
+            await reportCheckedTasks();
+            startNextPhase();
+        } else {
+            if (!pomoData) return alert("先に同期を。");
+            startNextPhase();
+        }
+    }
+
+    async function reportCheckedTasks() {
+        const key = slotKeys[currentSlotIndex];
+        if (!pomoData || !pomoData[key]) return;
+        const listId = pomoData[key].listId;
+        const checks = document.querySelectorAll('.task-check:checked');
+        const promises = Array.from(checks).map(cb => {
+            const taskId = cb.getAttribute('data-id');
+            const url = `${GAS_URL}?action=complete&listId=${listId}&taskId=${taskId}`;
+            return fetch(url, { mode: 'no-cors' }).then(() => {
+                cb.parentElement.style.opacity = "0.2";
+                cb.disabled = true;
+            });
+        });
+        await Promise.all(promises);
+    }
+
+    function startNextPhase() {
+        currentPhaseIndex++;
+        if (currentPhaseIndex >= phases.length) {
+            currentPhaseIndex = -1;
+            currentSlotIndex++;
+            if (currentSlotIndex >= slotKeys.length) {
+                startGrandBrief();
+            } else {
+                setupStandby();
+                refreshDisplay();
+            }
+            return;
+        }
+        const p = phases[currentPhaseIndex];
+        document.getElementById('phase-name').textContent = p.name;
+        document.getElementById('phase-msg').innerHTML = p.msg;
+        timeLeft = p.time;
+        const btn = document.getElementById('action-btn');
+        btn.textContent = `${p.name}完了 (NEXT)`;
+        btn.className = "btn-next";
+        startTimer();
+    }
+
+    function startGrandBrief() {
+        document.body.classList.add('forest-mode');
+        document.getElementById('target-slot-name').textContent = "BLOCK COMPLETED";
+        currentPhaseIndex = 98;
+        document.getElementById('phase-name').textContent = "REVIEW";
+        document.getElementById('phase-msg').innerHTML = "15分の振り返り。ログを刻み、<br>次のブロックの布陣を整えよ。";
+        timeLeft = 15 * 60;
+        const btn = document.getElementById('action-btn');
+        btn.textContent = "振り返り完了、休息へ";
+        btn.className = "btn-next";
+        startTimer();
+    }
+
+    function startForestRest() {
+        currentPhaseIndex = 99;
+        document.getElementById('phase-name').textContent = "FOREST REST";
+        document.getElementById('phase-msg').innerHTML = "15分の深い休息。スマホを置き、<br>森の静寂に身を委ねよ。";
+        timeLeft = 15 * 60;
+        const btn = document.getElementById('action-btn');
+        btn.textContent = "休息終了 (READY)";
+        btn.className = "btn-start";
+        playFireSound(); // 焚き火開始
+        startTimer();
+    }
+
+    function startTimer() {
+        if (timerId) clearInterval(timerId);
+        timerId = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(timerId);
+                timerId = null;
+                notifyUser();
+                if (currentPhaseIndex === 98) {
+                    startForestRest();
+                } else if (currentPhaseIndex === 99) {
+                    stopFireSound();
+                    currentSlotIndex = 0;
+                    document.body.classList.remove('forest-mode');
+                    setupStandby();
+                    refreshDisplay();
+                } else {
+                    reportCheckedTasks();
+                    startNextPhase();
+                }
+            }
+        }, 1000);
+    }
+
+    function updateDisplay() {
+        let m = Math.floor(timeLeft / 60);
+        let s = timeLeft % 60;
+        document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
+
+    // 震動とビープ音
+    function notifyUser() {
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+        } catch(e) {}
+    }
+
+    // 焚き火の音（ホワイトノイズを加工して自作）
+    function playFireSound() {
+        if (!audioCtx) return;
+        const bufferSize = audioCtx.sampleRate * 2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400;
+
+        const crackle = audioCtx.createGain();
+        crackle.gain.value = 0.05;
+
+        noise.connect(filter);
+        filter.connect(crackle);
+        crackle.connect(audioCtx.destination);
+        noise.start();
+        fireNode = { noise, crackle };
+    }
+
+    function stopFireSound() {
+        if (fireNode) {
+            fireNode.noise.stop();
+            fireNode = null;
+        }
+    }
+
+    function setupStandby() {
+        if (timerId) clearInterval(timerId);
+        timerId = null;
+        document.getElementById('phase-name').textContent = "READY";
+        document.getElementById('timer').textContent = "00:00";
+        document.getElementById('phase-msg').textContent = "準備が整い次第、出陣せよ。";
+        const btn = document.getElementById('action-btn');
+        btn.textContent = "出陣 (START)";
+        btn.className = "btn-start";
+    }
+</script>
+</body>
+</html>
+
         :root { --accent: #00ffcc; --bg: #0f0f10; --card: #1a1a1b; --primary-btn: #007bff; --success-btn: #28a745; }
         body { background-color: var(--bg); color: #e0e0e0; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
         .container { text-align: center; width: 100%; max-width: 500px; }
