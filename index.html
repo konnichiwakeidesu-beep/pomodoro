@@ -19,12 +19,13 @@
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
         .container { display: flex; flex-direction: column; width: 100%; max-width: 500px; height: 100%; }
         
-        #fetch-btn { 
-            width: 100%; background: #333; border: 2px solid #444; color: #fff; 
-            padding: 25px; font-size: 22px; font-weight: 900; border-radius: 12px; 
+        #start-init-btn { 
+            width: 100%; background: var(--primary-btn); border: none; color: #fff; 
+            padding: 25px; font-size: 26px; font-weight: 900; border-radius: 12px; 
             cursor: pointer; margin-top: 20px; transition: 0.3s; flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
         }
-        #fetch-btn.hidden { display: none; }
+        #start-init-btn.hidden { display: none; }
 
         .header-info { flex-shrink: 0; text-align: center; }
         #timer { font-size: 72px; font-weight: 200; margin: 0; color: var(--accent); letter-spacing: -2px; }
@@ -59,12 +60,14 @@
         <div id="target-slot-name">READY</div>
         <div id="phase-name">ROPE</div>
         <div id="timer">00:00</div>
-        <div id="phase-msg">任務を同期して、出陣せよ。</div>
+        <div id="phase-msg">全ポモを完了し、深い休息へ至れ。</div>
     </div>
-    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
+    
+    <button id="start-init-btn" onclick="initBattle()">⚔️ 出陣 (START)</button>
+    
     <div id="main-content" class="content-area"></div>
     <div id="footer-action" class="footer-action">
-        <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
+        <button id="action-btn" class="btn-start" onclick="handleAction()">次フェーズへ</button>
     </div>
 </div>
 
@@ -83,11 +86,12 @@
         { name: "Scout", time: 1 * 60, msg: "解像度を上げよ。" },
         { name: "Rush", time: 20 * 60, msg: "集中。完璧を求めるな。" },
         { name: "Pass", time: 3 * 60, msg: "中継。粗くても投げろ。" },
-        { name: "Knot", time: 2 * 60, msg: "結び目。任務を偵察中..." },
+        { name: "Knot", time: 2 * 60, msg: "結び目。任務を自動偵察中..." },
         { name: "Clean", time: 1 * 60, msg: "戦場を清めよ。" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
+    // --- 音響・通知 ---
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -124,7 +128,10 @@
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(400, audioCtx.currentTime);
             const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            
+            // 音量強化版 (0.2)
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); 
+            
             noiseNode.connect(filter);
             filter.connect(gain);
             gain.connect(audioCtx.destination);
@@ -132,51 +139,34 @@
         } catch(e) {}
     }
 
-function playFireplaceSound() {
-        try {
-            initAudio();
-            const bufferSize = 2 * audioCtx.sampleRate;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
-            noiseNode = audioCtx.createBufferSource();
-            noiseNode.buffer = buffer;
-            noiseNode.loop = true;
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(400, audioCtx.currentTime);
-            const gain = audioCtx.createGain();
-            
-            // 【音量強化】0.05 から 0.2 へ引き上げ
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); 
-            
-            noiseNode.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-            noiseNode.start();
-        } catch(e) { console.error("焚き火音失敗", e); }
+    function stopFireplaceSound() {
+        if (noiseNode) { try { noiseNode.stop(); } catch(e){} noiseNode = null; }
     }
 
+    // --- 初回出陣の儀 ---
+    function initBattle() {
+        initAudio();
+        document.getElementById('start-init-btn').classList.add('hidden');
+        document.getElementById('main-content').classList.add('active');
+        document.getElementById('footer-action').classList.add('active');
+        startNextPhase();
+    }
+
+    // --- 同期（Knot等で自動発動） ---
     async function fetchTasks(isAuto = false) {
-        if(!isAuto) {
-            const btn = document.getElementById('fetch-btn');
-            if(btn) btn.textContent = "偵察中...";
-        }
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
-            if(!isAuto) {
-                document.getElementById('fetch-btn').classList.add('hidden');
-                document.getElementById('main-content').classList.add('active');
-                document.getElementById('footer-action').classList.add('active');
-            }
             refreshDisplay();
-        } catch (e) { if(!isAuto) alert("同期失敗。"); }
+        } catch (e) {
+            console.error("偵察失敗。次の結び目を待て。");
+        }
     }
 
+    // --- 表示更新 ---
     function refreshDisplay() {
         const main = document.getElementById('main-content');
-        main.innerHTML = ""; // 画面を初期化
+        main.innerHTML = ""; 
         
         const currentPhaseName = (currentPhaseIndex >= 0 && currentPhaseIndex < phases.length) ? phases[currentPhaseIndex].name : "";
         
@@ -201,7 +191,6 @@ function playFireplaceSound() {
         const key = slotKeys[currentSlotIndex];
         document.getElementById('target-slot-name').textContent = key;
 
-        // 軍令表示（追記）
         if (currentSlotIndex === 0) {
             main.innerHTML += `<div class="guide-box" style="border-left-color:#ffcc00;"><strong>ポモドーロ①：INBOXゼロ（分解・分類）</strong><br>
             ①-1.溜まったタスクを25分でできると思うところまで分解。<br>
@@ -218,10 +207,10 @@ function playFireplaceSound() {
             ②-4.案件が単純なものはクライアントに背景などをヒアリングする</div>`;
         }
 
-        // タスク表示（追記）
         const data = pomoData ? pomoData[key] : null;
         if (!data || data.tasks.length === 0) {
-            main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
+            main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">' + 
+                (currentSlotIndex === 0 ? '（INBOX整理中... Knotで任務を同期する）' : '（任務なし）') + '</div>';
             return;
         }
         data.tasks.forEach(task => {
@@ -266,6 +255,7 @@ function playFireplaceSound() {
         document.getElementById('phase-msg').textContent = p.msg;
         timeLeft = p.time;
         
+        // Knotフェーズで任務を読みに行く
         if(p.name === "Knot") fetchTasks(true);
 
         document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
