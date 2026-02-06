@@ -37,25 +37,18 @@
             display: none; background: var(--card); border-radius: 12px; padding: 10px; 
             text-align: left; border: 1px solid #333; 
             flex-grow: 1; overflow-y: auto; margin-bottom: 15px;
-            -webkit-overflow-scrolling: touch;
         }
         .content-area.active { display: block; }
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
         
         .task-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #2a2a2b; font-size: 20px; }
         .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; }
-
         textarea#review-note { width: 100%; height: 100%; min-height: 200px; background: transparent; color: #fff; border: none; padding: 15px; box-sizing: border-box; font-size: 18px; resize: none; outline: none; }
-
         .footer-action { display: none; flex-shrink: 0; padding-bottom: 10px; }
         .footer-action.active { display: block; }
-        button#action-btn { 
-            width: 100%; padding: 25px; font-size: 24px; cursor: pointer; 
-            border: none; border-radius: 16px; font-weight: bold; color: white;
-        }
+        button#action-btn { width: 100%; padding: 25px; font-size: 24px; cursor: pointer; border: none; border-radius: 16px; font-weight: bold; color: white; }
         .btn-start { background: var(--primary-btn); }
         .btn-next { background: var(--success-btn); }
-
         .guide-box { background:#2c3e50; padding:15px; border-radius:8px; margin-bottom:15px; font-size:14px; border-left:4px solid var(--accent); color:#fff; line-height:1.6; }
     </style>
 </head>
@@ -68,10 +61,8 @@
         <div id="timer">00:00</div>
         <div id="phase-msg">任務を同期して、出陣せよ。</div>
     </div>
-
     <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
     <div id="main-content" class="content-area"></div>
-
     <div id="footer-action" class="footer-action">
         <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
     </div>
@@ -92,80 +83,82 @@
         { name: "Scout", time: 1 * 60, msg: "解像度を上げよ。" },
         { name: "Rush", time: 20 * 60, msg: "集中。完璧を求めるな。" },
         { name: "Pass", time: 3 * 60, msg: "中継。粗くても投げろ。" },
-        { name: "Knot", time: 2 * 60, msg: "結び目。積み残しを凝視せよ。" },
+        { name: "Knot", time: 2 * 60, msg: "結び目。任務を偵察中..." },
         { name: "Clean", time: 1 * 60, msg: "戦場を清めよ。" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
-    // --- 音響・通知 ---
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
     function notifyUser() {
-        initAudio();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        } catch(e) {}
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
     function playFireplaceSound() {
-        initAudio();
-        const bufferSize = 2 * audioCtx.sampleRate;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const output = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
-        noiseNode = audioCtx.createBufferSource();
-        noiseNode.buffer = buffer;
-        noiseNode.loop = true;
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(400, audioCtx.currentTime);
-        const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-        noiseNode.connect(filter);
-        filter.connect(gain);
-        gain.connect(audioCtx.destination);
-        noiseNode.start();
+        try {
+            initAudio();
+            const bufferSize = 2 * audioCtx.sampleRate;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+            noiseNode = audioCtx.createBufferSource();
+            noiseNode.buffer = buffer;
+            noiseNode.loop = true;
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(400, audioCtx.currentTime);
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            noiseNode.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            noiseNode.start();
+        } catch(e) {}
     }
 
     function stopFireplaceSound() {
-        if (noiseNode) { noiseNode.stop(); noiseNode = null; }
+        if (noiseNode) { try { noiseNode.stop(); } catch(e){} noiseNode = null; }
     }
 
-    // --- 同期 ---
-    async function fetchTasks() {
-        const btn = document.getElementById('fetch-btn');
-        btn.textContent = "偵察中...";
+    async function fetchTasks(isAuto = false) {
+        if(!isAuto) {
+            const btn = document.getElementById('fetch-btn');
+            if(btn) btn.textContent = "偵察中...";
+        }
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
-            btn.classList.add('hidden');
-            document.getElementById('main-content').classList.add('active');
-            document.getElementById('footer-action').classList.add('active');
-            currentSlotIndex = 0;
-            currentPhaseIndex = -1;
-            document.body.classList.remove('forest-mode');
-            setupStandby(); 
+            if(!isAuto) {
+                document.getElementById('fetch-btn').classList.add('hidden');
+                document.getElementById('main-content').classList.add('active');
+                document.getElementById('footer-action').classList.add('active');
+            }
             refreshDisplay();
-        } catch (e) { alert("同期失敗。"); btn.textContent = "❌ 再試行"; }
+        } catch (e) { if(!isAuto) alert("同期失敗。"); }
     }
 
-    // --- 表示更新 ---
     function refreshDisplay() {
         const main = document.getElementById('main-content');
-        main.innerHTML = "";
+        main.innerHTML = ""; // 画面を初期化
+        
         const currentPhaseName = (currentPhaseIndex >= 0 && currentPhaseIndex < phases.length) ? phases[currentPhaseIndex].name : "";
-
+        
         if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
             document.getElementById('target-slot-name').textContent = "GREAT REST";
             if (currentPhaseIndex === 98) {
@@ -187,7 +180,7 @@
         const key = slotKeys[currentSlotIndex];
         document.getElementById('target-slot-name').textContent = key;
 
-        // ポモ①・②固定指針
+        // 軍令表示（追記）
         if (currentSlotIndex === 0) {
             main.innerHTML += `<div class="guide-box" style="border-left-color:#ffcc00;"><strong>ポモドーロ①：INBOXゼロ（分解・分類）</strong><br>
             ①-1.溜まったタスクを25分でできると思うところまで分解。<br>
@@ -204,6 +197,7 @@
             ②-4.案件が単純なものはクライアントに背景などをヒアリングする</div>`;
         }
 
+        // タスク表示（追記）
         const data = pomoData ? pomoData[key] : null;
         if (!data || data.tasks.length === 0) {
             main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
@@ -217,7 +211,6 @@
         });
     }
 
-    // --- 進行管理 ---
     async function handleAction() {
         initAudio();
         if (timerId) {
@@ -234,14 +227,7 @@
     function startNextPhase() {
         if (currentPhaseIndex === 99) {
             stopFireplaceSound();
-            currentSlotIndex = 0; currentPhaseIndex = -1; pomoData = null;
-            document.body.classList.remove('forest-mode');
-            document.getElementById('main-content').classList.remove('active');
-            document.getElementById('footer-action').classList.remove('active');
-            const fBtn = document.getElementById('fetch-btn');
-            fBtn.classList.remove('hidden');
-            fBtn.textContent = "⚡ 任務を同期";
-            setupStandby();
+            location.reload();
             return;
         }
 
@@ -258,6 +244,9 @@
         document.getElementById('phase-name').textContent = p.name;
         document.getElementById('phase-msg').textContent = p.msg;
         timeLeft = p.time;
+        
+        if(p.name === "Knot") fetchTasks(true);
+
         document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
         document.getElementById('action-btn').className = "btn-next";
         refreshDisplay();
