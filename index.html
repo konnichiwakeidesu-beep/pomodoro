@@ -19,13 +19,12 @@
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
         .container { display: flex; flex-direction: column; width: 100%; max-width: 500px; height: 100%; }
         
-        #start-init-btn { 
-            width: 100%; background: var(--primary-btn); border: none; color: #fff; 
-            padding: 25px; font-size: 26px; font-weight: 900; border-radius: 12px; 
+        #fetch-btn { 
+            width: 100%; background: #333; border: 2px solid #444; color: #fff; 
+            padding: 25px; font-size: 22px; font-weight: 900; border-radius: 12px; 
             cursor: pointer; margin-top: 20px; transition: 0.3s; flex-shrink: 0;
-            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
         }
-        #start-init-btn.hidden { display: none; }
+        #fetch-btn.hidden { display: none; }
 
         .header-info { flex-shrink: 0; text-align: center; }
         #timer { font-size: 72px; font-weight: 200; margin: 0; color: var(--accent); letter-spacing: -2px; }
@@ -60,14 +59,12 @@
         <div id="target-slot-name">READY</div>
         <div id="phase-name">ROPE</div>
         <div id="timer">00:00</div>
-        <div id="phase-msg">全ポモを完了し、深い休息へ至れ。</div>
+        <div id="phase-msg">任務を同期して、出陣せよ。</div>
     </div>
-    
-    <button id="start-init-btn" onclick="initBattle()">⚔️ 出陣 (START)</button>
-    
+    <button id="fetch-btn" onclick="fetchTasks()">⚡ 任務を同期</button>
     <div id="main-content" class="content-area"></div>
     <div id="footer-action" class="footer-action">
-        <button id="action-btn" class="btn-start" onclick="handleAction()">次フェーズへ</button>
+        <button id="action-btn" class="btn-start" onclick="handleAction()">出陣 (START)</button>
     </div>
 </div>
 
@@ -80,94 +77,117 @@
     let timeLeft = 0;
     let audioCtx = null;
     let noiseNode = null;
+    let fireplaceNode = null;
     let pomoData = null;
 
     const phases = [
         { name: "Scout", time: 1 * 60, msg: "解像度を上げよ。" },
         { name: "Rush", time: 20 * 60, msg: "集中。完璧を求めるな。" },
         { name: "Pass", time: 3 * 60, msg: "中継。粗くても投げろ。" },
-        { name: "Knot", time: 2 * 60, msg: "結び目。任務を自動偵察中..." },
+        { name: "Knot", time: 2 * 60, msg: "結び目。任務を偵察中..." },
         { name: "Clean", time: 1 * 60, msg: "戦場を清めよ。" },
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
-    // --- 音響・通知 ---
+    // --- 音響エンジン ---
     function initAudio() {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
     function notifyUser() {
-        try {
-            initAudio();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.5);
-        } catch(e) {}
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
-    function playFireplaceSound() {
-        try {
-            initAudio();
-            const bufferSize = 2 * audioCtx.sampleRate;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
-            noiseNode = audioCtx.createBufferSource();
-            noiseNode.buffer = buffer;
-            noiseNode.loop = true;
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(400, audioCtx.currentTime);
-            const gain = audioCtx.createGain();
-            
-            // 音量強化版 (0.2)
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); 
-            
-            noiseNode.connect(filter);
-            filter.connect(gain);
-            gain.connect(audioCtx.destination);
-            noiseNode.start();
-        } catch(e) {}
-    }
-
-    function stopFireplaceSound() {
+    function stopAllNoise() {
         if (noiseNode) { try { noiseNode.stop(); } catch(e){} noiseNode = null; }
+        if (fireplaceNode) { try { fireplaceNode.stop(); } catch(e){} fireplaceNode = null; }
     }
 
-    // --- 初回出陣の儀 ---
-    function initBattle() {
+    function playBrownNoise() {
+        stopAllNoise();
         initAudio();
-        document.getElementById('start-init-btn').classList.add('hidden');
-        document.getElementById('main-content').classList.add('active');
-        document.getElementById('footer-action').classList.add('active');
-        startNextPhase();
+        const bufferSize = 10 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+            let white = Math.random() * 2 - 1;
+            output[i] = (lastOut + (0.02 * white)) / 1.02;
+            lastOut = output[i];
+            output[i] *= 3.5; 
+        }
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer;
+        noiseNode.loop = true;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        noiseNode.connect(gain).connect(audioCtx.destination);
+        noiseNode.start();
     }
 
-    // --- 同期（Knot等で自動発動） ---
+    function playDeepRestSound() {
+        stopAllNoise();
+        initAudio();
+        const bufferSize = 5 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+        
+        // ホワイトノイズ
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = buffer;
+        noiseNode.loop = true;
+        const noiseGain = audioCtx.createGain();
+        noiseGain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+        noiseNode.connect(noiseGain).connect(audioCtx.destination);
+        noiseNode.start();
+
+        // 焚き火の音（フィルターされたノイズ）
+        fireplaceNode = audioCtx.createBufferSource();
+        fireplaceNode.buffer = buffer;
+        fireplaceNode.loop = true;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, audioCtx.currentTime);
+        const fireGain = audioCtx.createGain();
+        fireGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        fireplaceNode.connect(filter).connect(fireGain).connect(audioCtx.destination);
+        fireplaceNode.start();
+    }
+
+    // --- システム制御 ---
     async function fetchTasks(isAuto = false) {
+        if(!isAuto) {
+            const btn = document.getElementById('fetch-btn');
+            if(btn) btn.textContent = "偵察中...";
+        }
         try {
             const res = await fetch(GAS_URL);
             pomoData = await res.json();
+            if(!isAuto) {
+                document.getElementById('fetch-btn').classList.add('hidden');
+                document.getElementById('main-content').classList.add('active');
+                document.getElementById('footer-action').classList.add('active');
+            }
             refreshDisplay();
-        } catch (e) {
-            console.error("偵察失敗。次の結び目を待て。");
-        }
+        } catch (e) { if(!isAuto) alert("同期失敗。"); }
     }
 
-    // --- 表示更新 ---
     function refreshDisplay() {
         const main = document.getElementById('main-content');
-        main.innerHTML = ""; 
-        
+        main.innerHTML = "";
         const currentPhaseName = (currentPhaseIndex >= 0 && currentPhaseIndex < phases.length) ? phases[currentPhaseIndex].name : "";
         
         if (currentPhaseIndex === 98 || currentPhaseIndex === 99) {
@@ -192,25 +212,14 @@
         document.getElementById('target-slot-name').textContent = key;
 
         if (currentSlotIndex === 0) {
-            main.innerHTML += `<div class="guide-box" style="border-left-color:#ffcc00;"><strong>ポモドーロ①：INBOXゼロ（分解・分類）</strong><br>
-            ①-1.溜まったタスクを25分でできると思うところまで分解。<br>
-            ①-2.「誰に何を打診するか」をこの時点で決めて登録（まだ送らない）。<br>
-            ①-3.実行に必要な情報に漏れがないかを確認して分類。<br>
-            ①-4.somdayに入れたものは分解しない。<br>
-            ※somedayに入れる基準は、曖昧なもの。いつでもいいもの。</div>`;
+            main.innerHTML += `<div class="guide-box" style="border-left-color:#ffcc00;"><strong>ポモドーロ①：INBOXゼロ（分解・分類）</strong><br>①-1.タスクを25分単位に分解。<br>①-2.打診先を決定。<br>①-3.情報を分類。<br>①-4.曖昧なものはsomedayへ。</div>`;
         } else if (currentSlotIndex === 1) {
-            main.innerHTML += `<div class="guide-box"><strong>ポモドーロ②：コミュニケーション（一斉掃討）</strong><br>
-            ①で決めた「打診・確認」を一気に2分ルールで放つ。<br>
-            ②-1.ボールを相手に持たせ、「連絡待ち」リストへタスクを登録<br>
-            ②-2.進捗管理シートで3日後までの〆切のリマインドを行う。<br>
-            ②-3.先のアポイントなど打診しておきたい連絡を行う。<br>
-            ②-4.案件が単純なものはクライアントに背景などをヒアリングする</div>`;
+            main.innerHTML += `<div class="guide-box"><strong>ポモドーロ②：コミュニケーション（一斉掃討）</strong><br>②-1.2分ルールで打診を一気に放つ。<br>②-2.「連絡待ち」リストへ登録。<br>②-3.3日後までの〆切確認。</div>`;
         }
 
         const data = pomoData ? pomoData[key] : null;
         if (!data || data.tasks.length === 0) {
-            main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">' + 
-                (currentSlotIndex === 0 ? '（INBOX整理中... Knotで任務を同期する）' : '（任務なし）') + '</div>';
+            main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
             return;
         }
         data.tasks.forEach(task => {
@@ -222,7 +231,7 @@
     }
 
     async function handleAction() {
-        initAudio();
+        notifyUser(); // 操作音
         if (timerId) {
             clearInterval(timerId);
             timerId = null;
@@ -236,7 +245,7 @@
 
     function startNextPhase() {
         if (currentPhaseIndex === 99) {
-            stopFireplaceSound();
+            stopAllNoise();
             location.reload();
             return;
         }
@@ -255,8 +264,10 @@
         document.getElementById('phase-msg').textContent = p.msg;
         timeLeft = p.time;
         
-        // Knotフェーズで任務を読みに行く
         if(p.name === "Knot") fetchTasks(true);
+
+        // 集中音再生
+        playBrownNoise();
 
         document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
         document.getElementById('action-btn').className = "btn-next";
@@ -271,6 +282,9 @@
         document.getElementById('phase-name').textContent = "REVIEW";
         document.getElementById('phase-msg').textContent = "戦果を記せ。";
         timeLeft = 15 * 60;
+        
+        playDeepRestSound(); // 深層休息音（ホワイトノイズ+焚き火）
+
         document.getElementById('action-btn').textContent = "振り返り完了";
         document.getElementById('action-btn').className = "btn-next";
         refreshDisplay();
@@ -279,11 +293,13 @@
 
     function startForestRest() {
         notifyUser();
-        playFireplaceSound();
         currentPhaseIndex = 99;
         document.getElementById('phase-name').textContent = "FOREST REST";
         document.getElementById('phase-msg').textContent = "深い休息を。";
         timeLeft = 15 * 60;
+        
+        playDeepRestSound(); // 維持
+
         document.getElementById('action-btn').textContent = "休息終了 (EXIT)";
         document.getElementById('action-btn').className = "btn-start";
         refreshDisplay();
@@ -299,7 +315,7 @@
             if (timeLeft <= 0) {
                 clearInterval(timerId);
                 timerId = null;
-                notifyUser();
+                notifyUser(); // 完了音
                 if (currentPhaseIndex === 98) startForestRest();
                 else if (currentPhaseIndex === 99) {}
                 else { reportCheckedTasks(); startNextPhase(); }
@@ -328,6 +344,7 @@
     }
 
     function setupStandby() {
+        stopAllNoise();
         document.getElementById('target-slot-name').textContent = "READY";
         document.getElementById('phase-name').textContent = "ROPE";
         document.getElementById('timer').textContent = "00:00";
