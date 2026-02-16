@@ -89,63 +89,87 @@
         { name: "Brief", time: 3 * 60, msg: "完全に離れよ。" }
     ];
 
-    // --- 音響エンジン ---
+    // --- 音響エンジン（強化版） ---
     function initAudio() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        } else if (audioCtx.state === 'suspended' || audioCtx.state === 'closed') {
+            audioCtx.resume().catch(() => {
+                // 復帰失敗時は再作成
+                audioCtx = new AudioContext();
+            });
+        }
     }
 
     function notifyUser() {
-        initAudio();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } catch(e) { console.error("Beep Error", e); }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
     function stopAllNoise() {
-        if (noiseNode) { try { noiseNode.stop(); } catch(e){} noiseNode = null; }
-        if (fireplaceNode) { try { fireplaceNode.stop(); } catch(e){} fireplaceNode = null; }
+        if (noiseNode) { 
+            try { noiseNode.stop(); noiseNode.disconnect(); } catch(e){} 
+            noiseNode = null; 
+        }
+        if (fireplaceNode) { 
+            try { fireplaceNode.stop(); fireplaceNode.disconnect(); } catch(e){} 
+            fireplaceNode = null; 
+        }
     }
 
-    function playBrownNoise() {
+    // ブラウンノイズ（実際は低音フィルタを通したホワイトノイズ）
+    function playFocusNoise() {
         stopAllNoise();
         initAudio();
-        const bufferSize = 10 * audioCtx.sampleRate;
+        
+        // 5秒分のバッファを作成（ループさせる）
+        const bufferSize = 5 * audioCtx.sampleRate;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const output = buffer.getChannelData(0);
-        let lastOut = 0.0;
-        for (let i = 0; i < bufferSize; i++) {
-            let white = Math.random() * 2 - 1;
-            output[i] = (lastOut + (0.02 * white)) / 1.02;
-            lastOut = output[i];
-            output[i] *= 3.5; 
+        for (let i = 0; i < bufferSize; i++) { 
+            output[i] = Math.random() * 2 - 1; // ホワイトノイズ
         }
+
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer;
         noiseNode.loop = true;
+
+        // ローパスフィルタでブラウンノイズ風にする
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300, audioCtx.currentTime); // 300Hz以下を通す（ゴーっという音）
+        
         const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-        noiseNode.connect(gain).connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime); // 音量
+
+        noiseNode.connect(filter).connect(gain).connect(audioCtx.destination);
         noiseNode.start();
     }
 
+    // 休息用サウンド（ホワイトノイズ＋焚き火）
     function playDeepRestSound() {
         stopAllNoise();
         initAudio();
+
         const bufferSize = 5 * audioCtx.sampleRate;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const output = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
         
-        // ホワイトノイズ
+        // 1. 背景のサーッという音（ホワイトノイズ弱）
         noiseNode = audioCtx.createBufferSource();
         noiseNode.buffer = buffer;
         noiseNode.loop = true;
@@ -154,15 +178,19 @@
         noiseNode.connect(noiseGain).connect(audioCtx.destination);
         noiseNode.start();
 
-        // 焚き火の音（フィルターされたノイズ）
+        // 2. 焚き火のパチパチ音（フィルタリングしたノイズ）
         fireplaceNode = audioCtx.createBufferSource();
         fireplaceNode.buffer = buffer;
         fireplaceNode.loop = true;
+        
+        // 焚き火風フィルタ
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(400, audioCtx.currentTime);
+        filter.frequency.setValueAtTime(500, audioCtx.currentTime);
+        
         const fireGain = audioCtx.createGain();
-        fireGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        fireGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        
         fireplaceNode.connect(filter).connect(fireGain).connect(audioCtx.destination);
         fireplaceNode.start();
     }
@@ -211,6 +239,7 @@
         const key = slotKeys[currentSlotIndex];
         document.getElementById('target-slot-name').textContent = key;
 
+        // ガイド表示
         if (currentSlotIndex === 0) {
             main.innerHTML += `<div class="guide-box" style="border-left-color:#ffcc00;"><strong>ポモドーロ①：INBOXゼロ（分解・分類）</strong><br>①-1.タスクを25分単位に分解。<br>①-2.打診先を決定。<br>①-3.情報を分類。<br>①-4.曖昧なものはsomedayへ。</div>`;
         } else if (currentSlotIndex === 1) {
@@ -230,8 +259,11 @@
         });
     }
 
+    // アクションハンドラ（必ずここでAudioContextを叩き起こす）
     async function handleAction() {
+        initAudio(); // ユーザー操作のタイミングで確実に再開・初期化
         notifyUser(); // 操作音
+
         if (timerId) {
             clearInterval(timerId);
             timerId = null;
@@ -266,8 +298,8 @@
         
         if(p.name === "Knot") fetchTasks(true);
 
-        // 集中音再生
-        playBrownNoise();
+        // フェーズ進行中のノイズ再生
+        playFocusNoise();
 
         document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
         document.getElementById('action-btn').className = "btn-next";
@@ -283,7 +315,7 @@
         document.getElementById('phase-msg').textContent = "戦果を記せ。";
         timeLeft = 15 * 60;
         
-        playDeepRestSound(); // 深層休息音（ホワイトノイズ+焚き火）
+        playDeepRestSound();
 
         document.getElementById('action-btn').textContent = "振り返り完了";
         document.getElementById('action-btn').className = "btn-next";
@@ -298,7 +330,7 @@
         document.getElementById('phase-msg').textContent = "深い休息を。";
         timeLeft = 15 * 60;
         
-        playDeepRestSound(); // 維持
+        playDeepRestSound();
 
         document.getElementById('action-btn').textContent = "休息終了 (EXIT)";
         document.getElementById('action-btn').className = "btn-start";
@@ -315,7 +347,7 @@
             if (timeLeft <= 0) {
                 clearInterval(timerId);
                 timerId = null;
-                notifyUser(); // 完了音
+                notifyUser(); // 自動完了時のBeep
                 if (currentPhaseIndex === 98) startForestRest();
                 else if (currentPhaseIndex === 99) {}
                 else { reportCheckedTasks(); startNextPhase(); }
@@ -344,7 +376,7 @@
     }
 
     function setupStandby() {
-        stopAllNoise();
+        stopAllNoise(); // 待機中は音を止める（バッテリー節約とメリハリ）
         document.getElementById('target-slot-name').textContent = "READY";
         document.getElementById('phase-name').textContent = "ROPE";
         document.getElementById('timer').textContent = "00:00";
