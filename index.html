@@ -19,9 +19,6 @@
         body.forest-mode { background-color: var(--forest-bg); color: #dad7cd; }
         .container { display: flex; flex-direction: column; width: 100%; max-width: 500px; height: 100%; }
         
-        /* 統合された出陣ボタン */
-        #fetch-btn { display: none; } /* 旧ボタンは非表示 */
-
         .header-info { flex-shrink: 0; text-align: center; }
         #timer { font-size: 72px; font-weight: 200; margin: 0; color: var(--accent); letter-spacing: -2px; }
         body.forest-mode #timer { color: var(--forest-accent); }
@@ -38,8 +35,9 @@
         .content-area.active { display: block; }
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
         
-        .task-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #2a2a2b; font-size: 20px; }
-        .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; flex-shrink: 0; }
+        .task-item { border-bottom: 1px solid #2a2a2b; font-size: 20px; }
+        .task-label { display: flex; align-items: center; width: 100%; padding: 15px 10px; cursor: pointer; }
+        .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; flex-shrink: 0; cursor: pointer; }
         body.forest-mode .task-item { border-bottom-color: #4a6b53; }
 
         .footer-action { flex-shrink: 0; padding-bottom: 10px; width: 100%; }
@@ -62,7 +60,7 @@
     </div>
     <div id="main-content" class="content-area active">
         <div style="height:100%; display:flex; align-items:center; justify-content:center; color:#666; font-style:italic;">
-            出陣ボタンを押して任務を同期せよ。
+            出陣ボタンで任務を同期。
         </div>
     </div>
     <div class="footer-action">
@@ -102,19 +100,17 @@
             const gain = audioCtx.createGain();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); // ビープ音量を少しアップ
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime); 
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.5);
         } catch(e) {}
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
-    // ブラウンノイズ（集中用 & 焚き火のベース用）
-    function playBrownNoise(volume = 0.05, isFireplace = false) {
-        stopNoise();
+    function playSound(type) {
+        stopSound();
         try {
             initAudio();
             const bufferSize = 10 * audioCtx.sampleRate;
@@ -125,30 +121,30 @@
                 let white = Math.random() * 2 - 1;
                 output[i] = (lastOut + (0.02 * white)) / 1.02;
                 lastOut = output[i];
-                output[i] *= 3.5; // 補正
+                output[i] *= 3.5;
             }
             noiseNode = audioCtx.createBufferSource();
             noiseNode.buffer = buffer;
             noiseNode.loop = true;
             const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
             
-            if (isFireplace) {
+            if (type === 'fire') {
                 const filter = audioCtx.createBiquadFilter();
                 filter.type = 'lowpass';
                 filter.frequency.setValueAtTime(400, audioCtx.currentTime);
                 noiseNode.connect(filter);
                 filter.connect(gain);
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
             } else {
                 noiseNode.connect(gain);
+                gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
             }
-            
             gain.connect(audioCtx.destination);
             noiseNode.start();
         } catch(e) {}
     }
 
-    function stopNoise() {
+    function stopSound() {
         if (noiseNode) { try { noiseNode.stop(); } catch(e){} noiseNode = null; }
     }
 
@@ -163,25 +159,17 @@
     function refreshDisplay() {
         const main = document.getElementById('main-content');
         main.innerHTML = ""; 
-        
-        const currentPhaseName = (currentPhaseIndex >= 0 && currentPhaseIndex < phases.length) ? phases[currentPhaseIndex].name : "";
-        let listKeyToDisplay = ""; 
-
-        if (currentPhaseIndex === 98) { 
-            document.getElementById('target-slot-name').textContent = "REVIEW";
-            listKeyToDisplay = "レビュー";
-        } else if (currentPhaseIndex === 99) { 
-            document.getElementById('target-slot-name').textContent = "FOREST REST";
-            listKeyToDisplay = "休息のルーティン";
-        } else if (["Clean", "Brief"].includes(currentPhaseName)) {
-            main.innerHTML = `<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#666; font-style:italic;">${currentPhaseName === "Clean" ? "戦場を清めよ..." : "心を解き放て..."}</div>`;
+        let listKey = "";
+        if (currentPhaseIndex === 98) listKey = "レビュー";
+        else if (currentPhaseIndex === 99) listKey = "休息のルーティン";
+        else if (["Clean", "Brief"].includes(phases[currentPhaseIndex]?.name)) {
+            main.innerHTML = `<div style="height:100%; display:flex; align-items:center; justify-content:center; color:#666; font-style:italic;">戦場を清めよ...</div>`;
             return;
-        } else {
-            listKeyToDisplay = slotKeys[currentSlotIndex] || "READY";
-            document.getElementById('target-slot-name').textContent = listKeyToDisplay;
-        }
+        } else listKey = slotKeys[currentSlotIndex] || "READY";
 
-        const data = pomoData ? pomoData[listKeyToDisplay] : null;
+        document.getElementById('target-slot-name').textContent = listKey;
+
+        const data = pomoData ? pomoData[listKey] : null;
         if (!data || !data.tasks || data.tasks.length === 0) {
             main.innerHTML += '<div style="color:#444; padding:20px; text-align:center;">（任務なし）</div>';
             return;
@@ -189,136 +177,97 @@
         data.tasks.forEach(task => {
             const div = document.createElement('div');
             div.className = "task-item";
-            div.innerHTML = `<input type="checkbox" class="task-check" data-id="${task.id}" data-list="${listKeyToDisplay}"> <span>${task.title}</span>`;
+            div.innerHTML = `<label class="task-label"><input type="checkbox" class="task-check" data-id="${task.id}" data-list="${listKey}"><span>${task.title}</span></label>`;
             main.appendChild(div);
         });
     }
 
     async function handleAction() {
         initAudio();
-        notifyUser(); // ボタン押下時に必ずビープ
-
+        notifyUser(); 
         if (currentPhaseIndex === -1 && !pomoData) {
-            // 初回：同期して出陣
-            const btn = document.getElementById('action-btn');
-            btn.textContent = "偵察中...";
+            document.getElementById('action-btn').textContent = "偵察中...";
             await fetchTasks();
             startNextPhase();
-            return;
-        }
-
-        if (timerId) { 
+        } else if (timerId) { 
             clearInterval(timerId);
             timerId = null;
             await reportCheckedTasks();
             if (currentPhaseIndex === 98) startForestRest();
             else startNextPhase();
-        } else {
-            startNextPhase(); 
-        }
+        } else startNextPhase();
     }
 
     function startNextPhase() {
-        if (currentPhaseIndex === 99) {
-            stopNoise();
-            location.reload(); 
-            return;
-        }
-
+        if (currentPhaseIndex === 99) { stopSound(); location.reload(); return; }
         currentPhaseIndex++;
         if (currentPhaseIndex >= phases.length) {
-            currentPhaseIndex = -1;
-            currentSlotIndex++;
+            currentPhaseIndex = -1; currentSlotIndex++;
             if (currentSlotIndex >= slotKeys.length) startGrandReview(); 
             else { setupStandby(); refreshDisplay(); }
             return;
         }
-
         const p = phases[currentPhaseIndex];
         document.getElementById('phase-name').textContent = p.name;
         document.getElementById('phase-msg').textContent = p.msg;
         timeLeft = p.time;
-        
-        // 音響制御
-        if (p.name === "Rush") playBrownNoise(0.03); // 作業中はブラウンノイズ
-        else stopNoise();
-
-        if(p.name === "Knot") fetchTasks(true);
-
+        if (p.name === "Rush") playSound('brown'); else stopSound();
+        if (p.name === "Knot") fetchTasks(true);
         document.getElementById('action-btn').textContent = `${p.name}完了 (NEXT)`;
         document.getElementById('action-btn').className = "btn-next";
-        refreshDisplay();
-        startTimer();
+        refreshDisplay(); startTimer();
     }
 
     function startGrandReview() {
         document.body.classList.add('forest-mode'); 
         currentPhaseIndex = 98;
         document.getElementById('phase-name').textContent = "REVIEW";
-        document.getElementById('phase-msg').textContent = "戦果をチェックせよ。";
         timeLeft = 15 * 60;
         document.getElementById('action-btn').textContent = "振り返り完了";
         document.getElementById('action-btn').className = "btn-next";
-        refreshDisplay();
-        startTimer();
+        refreshDisplay(); startTimer();
     }
 
     function startForestRest() {
-        playBrownNoise(0.12, true); // 焚き火（音量アップ & フィルタ）
+        playSound('fire'); 
         currentPhaseIndex = 99; 
         document.getElementById('phase-name').textContent = "FOREST REST";
-        document.getElementById('phase-msg').textContent = "休息のルーティンをこなし、英気を養え。";
         timeLeft = 15 * 60;
         document.getElementById('action-btn').textContent = "休息終了 (EXIT)";
         document.getElementById('action-btn').className = "btn-start";
-        refreshDisplay();
-        startTimer();
+        refreshDisplay(); startTimer();
     }
 
     function startTimer() {
         if (timerId) clearInterval(timerId);
         updateDisplay();
         timerId = setInterval(() => {
-            timeLeft--;
-            updateDisplay();
+            timeLeft--; updateDisplay();
             if (timeLeft <= 0) {
-                clearInterval(timerId);
-                timerId = null;
-                notifyUser(); // 終了時に必ずビープ
-                if (currentPhaseIndex === 98) startForestRest();
-                else if (currentPhaseIndex === 99) { }
+                clearInterval(timerId); timerId = null; notifyUser(); 
+                if (currentPhaseIndex === 98) { reportCheckedTasks(); startForestRest(); }
+                else if (currentPhaseIndex === 99) {}
                 else { reportCheckedTasks(); startNextPhase(); }
             }
         }, 1000);
     }
 
     function updateDisplay() {
-        let m = Math.floor(timeLeft / 60);
-        let s = timeLeft % 60;
+        let m = Math.floor(timeLeft / 60); let s = timeLeft % 60;
         document.getElementById('timer').textContent = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     }
 
     async function reportCheckedTasks() {
         if (!pomoData) return;
-        
-        let slotName = "";
-        if (currentPhaseIndex === 98) slotName = "レビュー";
-        else if (currentPhaseIndex === 99) slotName = "休息のルーティン";
-        else slotName = slotKeys[currentSlotIndex];
-
-        // 【軍律変更】休息のルーティン時は同期・削除を行わない
-        if (slotName === "休息のルーティン") return;
-
         const checks = document.querySelectorAll('.task-check:checked');
         for (let cb of Array.from(checks)) {
+            const listKey = cb.getAttribute('data-list');
             const taskTitle = cb.nextElementSibling.textContent.trim();
             const taskId = cb.getAttribute('data-id');
-            const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(slotName)}&taskTitle=${encodeURIComponent(taskTitle)}`;
+            const url = `${GAS_URL}?action=complete&slotName=${encodeURIComponent(listKey)}&taskTitle=${encodeURIComponent(taskTitle)}`;
             fetch(url, { mode: 'no-cors' }); 
-            if (pomoData[slotName]) {
-                pomoData[slotName].tasks = pomoData[slotName].tasks.filter(t => t.id !== taskId);
-            }
-            cb.parentElement.remove();
+            if (pomoData[listKey]) pomoData[listKey].tasks = pomoData[listKey].tasks.filter(t => t.id !== taskId);
+            cb.closest('.task-item')?.remove();
         }
     }
 
@@ -326,10 +275,8 @@
         document.getElementById('target-slot-name').textContent = "READY";
         document.getElementById('phase-name').textContent = "ROPE";
         document.getElementById('timer').textContent = "00:00";
-        document.getElementById('phase-msg').textContent = "出陣せよ。";
         const btn = document.getElementById('action-btn');
-        btn.textContent = "次ポモ出陣 (START)";
-        btn.className = "btn-start";
+        btn.textContent = "次ポモ出陣 (START)"; btn.className = "btn-start";
     }
 </script>
 </body>
