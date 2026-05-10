@@ -43,8 +43,13 @@
         body.forest-mode .content-area { background: #344e41; border-color: #588157; }
         
         .task-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #2a2a2b; font-size: 20px; }
-        .task-item input[type="checkbox"] { width: 30px; height: 30px; margin-right: 15px; }
-        body.forest-mode .task-item { border-bottom-color: #4a6b53; }
+/* 修正後（絶対死守の軍令を追加） */
+.task-item input[type="checkbox"] { 
+    width: 30px; 
+    height: 30px; 
+    margin-right: 15px; 
+    flex-shrink: 0; /* ←これを追加せよ */
+}        body.forest-mode .task-item { border-bottom-color: #4a6b53; }
 
         .footer-action { display: none; flex-shrink: 0; padding-bottom: 10px; }
         .footer-action.active { display: block; }
